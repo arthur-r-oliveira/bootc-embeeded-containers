@@ -6,16 +6,17 @@
   - https://gitlab.com/fedora/bootc/examples/-/tree/main/physically-bound-images
 
 #### Step by step 
-- Download your redhat pull secrets from https://console.redhat.com/openshift/downloads#tool-pull-secret and place as local file `.pull-secret.json`
-- Build the first image with `bash -x build.sh v1`
-  - That will include the MicroShift payload + an sample wordpress Container image to the bootc image
+- Download your redhat pull secrets from https://console.redhat.com/openshift/downloads#tool-pull-secret and place as local file `.pull-secret.json`.
+- Build the first image with `bash -x build.sh v1. 
+  - That will include the MicroShift payload + an sample wordpress Container image to the bootc image.
   - Also produces a ISO image, to be used to install RHDE. 
-- Create a test VM with `create-vm.sh`
+- Within your test environment, [create a isolated network](https://github.com/openshift/microshift/blob/main/docs/contributor/image_mode.md#configure-isolated-network).
+- Create a test VM with `create-vm.sh`.
 - Access VM with user `redhat` and set [kubeconfig access to microshift](https://docs.redhat.com/en/documentation/red_hat_build_of_microshift/4.18/html/configuring/microshift-kubeconfig#accessing-microshift-cluster-locally_microshift-kubeconfig)
-- Build the second image with `bash -x build.sh v2`
+- Build the second image with `bash -x build.sh v2`.
   - That will include RHEL updates + a sample mysql Container image to bootc image tagged as V2.
-  - Also produces a ISO image
-- Upgrade live system to v2 
+  - Also produces a ISO image.
+- Upgrade live system to v2. 
   - https://docs.fedoraproject.org/en-US/bootc/disconnected-updates/ 
 
 ~~~
