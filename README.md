@@ -7,6 +7,7 @@
 
 #### Step by step 
 - Download your redhat pull secrets from https://console.redhat.com/openshift/downloads#tool-pull-secret and place as local file `.pull-secret.json`.
+- Build the base [microshift-bootc image](https://github.com/ggiguash/microshift/blob/bootc-embedded-image-upgrade-418/docs/contributor/image_mode.md#build-microshift-bootc-image).
 - Build the first image with `bash -x build.sh v1. 
   - That will include the MicroShift payload + an sample wordpress Container image to the bootc image.
   - Also produces a ISO image, to be used to install RHDE. 
