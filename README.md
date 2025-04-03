@@ -7,10 +7,13 @@
 
 #### Step by step 
 - Download your redhat pull secrets from https://console.redhat.com/openshift/downloads#tool-pull-secret and place as local file `.pull-secret.json`.
-- Build the base [microshift-bootc image](https://github.com/ggiguash/microshift/blob/bootc-embedded-image-upgrade-418/docs/contributor/image_mode.md#build-microshift-bootc-image).
-- Build the first image with `bash -x build.sh v1. 
-  - That will include the MicroShift payload + an sample wordpress Container image to the bootc image.
-  - Also produces a ISO image, to be used to install RHDE. 
+- Based on these [procedures](https://github.com/ggiguash/microshift/blob/bootc-embedded-image-upgrade-418/docs/contributor/image_mode.md#build-microshift-bootc-image), build the base microshift-bootc image.
+  - `bash -x build-base.sh`
+
+- Based on these [procedures]https://github.com/ggiguash/microshift/blob/bootc-embedded-image-upgrade-418/docs/contributor/image_mode.md#appendix-b-embedding-container-images-in-bootc-builds), using microshift-bootc image built in previous step, embeed the Container Images to your new microshift-bootc-embeed image:
+  - `bash -x build.sh v1. 
+    - That will include the MicroShift payload + an sample wordpress Container image to the bootc image.
+    - Also produces a ISO image, to be used to install RHDE. 
 - Within your test environment, [create a isolated network](https://github.com/openshift/microshift/blob/main/docs/contributor/image_mode.md#configure-isolated-network).
 - Create a test VM with `create-vm.sh`.
 - Access VM with user `redhat` and set [kubeconfig access to microshift](https://docs.redhat.com/en/documentation/red_hat_build_of_microshift/4.18/html/configuring/microshift-kubeconfig#accessing-microshift-cluster-locally_microshift-kubeconfig)

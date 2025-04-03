@@ -1,45 +1,16 @@
-FROM registry.redhat.io/rhel9/rhel-bootc:9.4
-ARG USHIFT_VER=4.18
-ARG USER_PASSWD
+#FROM registry.redhat.io/rhel9/rhel-bootc:9.4
+FROM localhost/microshift-4.18-bootc:latest
+ENV USHIFT_VER=4.18
 
 COPY ./embed_image.sh /usr/bin/
 COPY ./copy_embedded_images.sh /usr/bin/
 
+RUN subscription-manager release --set=9.4
 RUN dnf config-manager \
         --set-enabled rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms \
         --set-enabled fast-datapath-for-rhel-9-$(uname -m)-rpms
-RUN dnf install -y firewalld microshift* && \
-    systemctl enable microshift && \
-    dnf update -y && \
+RUN dnf update -y && \
     dnf clean all
-
-# Create a default 'redhat' user with the specified password.
-# Add it to the 'wheel' group to allow for running sudo commands.
-RUN if [ -z "${USER_PASSWD}" ] ; then \
-        echo USER_PASSWD is a mandatory build argument && exit 1 ; \
-    fi
-RUN useradd -m -d /var/home/redhat -G wheel redhat && \
-    echo "redhat:${USER_PASSWD}" | chpasswd
-
-# Mandatory firewall configuration
-RUN firewall-offline-cmd --zone=public --add-port=22/tcp && \
-    firewall-offline-cmd --zone=trusted --add-source=10.42.0.0/16 && \
-    firewall-offline-cmd --zone=trusted --add-source=169.254.169.1
-
-# Create a systemd unit to recursively make the root filesystem subtree
-# shared as required by OVN images
-RUN cat > /etc/systemd/system/microshift-make-rshared.service <<'EOF'
-[Unit]
-Description=Make root filesystem shared
-Before=microshift.service
-ConditionVirtualization=container
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/mount --make-rshared /
-[Install]
-WantedBy=multi-user.target
-EOF
-RUN systemctl enable microshift-make-rshared.service
 
 RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json <<PULL
     /usr/bin/embed_image.sh docker.io/library/wordpress:6.2.1-apache
@@ -52,8 +23,9 @@ RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json <<PULL
     /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:f89f7dfad06ab329ff8cd87221789cb9ab48ef89287b10ce9d6d654728b06013 --authfile /run/secrets/pull-secret.json
     /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:13f4e01257e2737471a7427af9360c4837971ead5d25613d30b76e5f1011c5eb --authfile /run/secrets/pull-secret.json
     /usr/bin/embed_image.sh registry.redhat.io/lvms4/lvms-rhel9-operator@sha256:bd6dc4d6e90fdbcdb844759e203c9c591abc5ac29a956257a90bda101a37b76e --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:f9167772a51b6a59fdd919494af9e6ca7b85a9df5b4c47781d543e8c94aa3b87 --authfile /run/secrets/pull-secret.json 
+    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:f9167772a51b6a59fdd919494af9e6ca7b85a9df5b4c47781d543e8c94aa3b87 --authfile /run/secrets/pull-secret.json
 PULL
+
 
 RUN mkdir -p /etc/systemd/system/microshift.service.d
 RUN cat > /etc/systemd/system/microshift.service.d/microshift-copy-images.conf <<EOF
