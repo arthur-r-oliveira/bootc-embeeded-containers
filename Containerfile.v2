@@ -12,23 +12,40 @@ RUN dnf config-manager \
 RUN dnf update -y && \
     dnf clean all
 
-RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json <<PULL
-    /usr/bin/embed_image.sh docker.io/library/wordpress:6.2.1-apache
-    /usr/bin/embed_image.sh docker.io/library/mysql:8.0
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:8201a3ccbfc0a655d8830d3017abd177107ac53b36012c498a27985285d903bc --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:b4e11cce33c194855259317a1c46c14de374641d876216e537d8cf2f0bf83c4c --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:744a183daa89e7d3ab1f78e3bc3de5621872bedfb41475de60cc158e6f5ab872 --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:07de5857445b9f5df7eff649e65766359feaae23fb20175e4996e0f79e985b4c --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:cd4d22e583d07ee6f88902d35e652342db8fa06b686dc6eec049176cc8043ba5 --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:f89f7dfad06ab329ff8cd87221789cb9ab48ef89287b10ce9d6d654728b06013 --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:13f4e01257e2737471a7427af9360c4837971ead5d25613d30b76e5f1011c5eb --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh registry.redhat.io/lvms4/lvms-rhel9-operator@sha256:bd6dc4d6e90fdbcdb844759e203c9c591abc5ac29a956257a90bda101a37b76e --authfile /run/secrets/pull-secret.json
-    /usr/bin/embed_image.sh quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:f9167772a51b6a59fdd919494af9e6ca7b85a9df5b4c47781d543e8c94aa3b87 --authfile /run/secrets/pull-secret.json
-PULL
-
-
-RUN mkdir -p /etc/systemd/system/microshift.service.d
-RUN cat > /etc/systemd/system/microshift.service.d/microshift-copy-images.conf <<EOF
-[Service]
-ExecStartPre=/bin/bash /usr/bin/copy_embedded_images.sh
-EOF
+    ENV IMAGE_STORAGE_DIR=/usr/lib/containers/storage
+    ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
+    
+    # Pull the container images into /usr/lib/containers/storage:
+    # - Each image goes into a separate sub-directory
+    # - Sub-directories are named after the image reference string SHA
+    # - An image list file maps image references to their name SHA
+    # First for MicroShift payload
+    RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json \
+        images="$(jq -r ".images[]" /usr/share/microshift/release/release-"$(uname -m)".json)" ; \
+        mkdir -p "${IMAGE_STORAGE_DIR}" ; \
+        for img in ${images} ; do \
+           /usr/bin/embed_image.sh ${img} --authfile /run/secrets/pull-secret.json ; \
+         done 
+    # Then for Applications
+    RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json <<PULL
+        /usr/bin/embed_image.sh docker.io/library/wordpress:6.2.1-apache
+        /usr/bin/embed_image.sh docker.io/library/mysql:8.0
+    PULL
+    
+    # 
+    RUN cat > /usr/bin/microshift-copy-images <<EOF
+    #!/bin/bash
+    set -eux -o pipefail
+    while IFS="," read -r img sha ; do
+        skopeo copy --preserve-digests \
+            "dir:${IMAGE_STORAGE_DIR}/\${sha}" \
+            "containers-storage:\${img}"
+    done < "${IMAGE_LIST_FILE}"
+    EOF
+    
+    RUN mkdir -p /etc/systemd/system/microshift.service.d
+    RUN cat > /etc/systemd/system/microshift.service.d/microshift-copy-images.conf <<EOF
+    [Service]
+    ExecStartPre=/bin/bash /usr/bin/microshift-copy-images
+    EOF
+    
