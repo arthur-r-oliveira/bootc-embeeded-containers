@@ -60,62 +60,84 @@ status:
   rollback: null
   rollbackQueued: false
   type: bootcHost
-[root@localhost ~]# oc get pods
-No resources found in default namespace.
-[root@localhost ~]# oc get pods -A
-NAMESPACE                              NAME                                            READY   STATUS    RESTARTS      AGE
-kube-system                            csi-snapshot-controller-79f48cb65c-xhlwm        1/1     Running   0             12m
-openshift-dns                          dns-default-5hgcz                               2/2     Running   0             10m
-openshift-dns                          node-resolver-4hn8r                             1/1     Running   0             11m
-openshift-gateway-api                  istiod-openshift-gateway-api-5f49f78b89-bc9lv   1/1     Running   0             10m
-openshift-gateway-api                  servicemesh-operator3-5c999c5478-wwvhw          2/2     Running   0             11m
-openshift-ingress                      router-default-5c6b6bf9cb-8pljt                 1/1     Running   0             11m
-openshift-multus                       dhcp-daemon-xltf7                               1/1     Running   0             11m
-openshift-multus                       multus-jfz8w                                    1/1     Running   0             11m
-openshift-operator-lifecycle-manager   catalog-operator-58bf96dbcc-r7mr6               1/1     Running   0             11m
-openshift-operator-lifecycle-manager   olm-operator-75cbbdffd7-5tw8n                   1/1     Running   0             11m
-openshift-ovn-kubernetes               ovnkube-master-4jsck                            4/4     Running   1 (11m ago)   11m
-openshift-ovn-kubernetes               ovnkube-node-bz9sj                              1/1     Running   1 (11m ago)   11m
-openshift-service-ca                   service-ca-7674ff74cb-9jpkf                     1/1     Running   0             11m
-openshift-storage                      lvms-operator-d6f9c9d4-722mm                    1/1     Running   0             12m
-openshift-storage                      vg-manager-slxhv                                1/1     Running   0             10m
-[root@localhost ~]# podman images
-REPOSITORY                                                                   TAG           IMAGE ID      CREATED        SIZE
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        86a73a727e4f  4 weeks ago    492 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        03ec3ae43b5e  4 weeks ago    579 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        3936b2921a18  5 weeks ago    657 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        243083e135a2  5 weeks ago    481 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        d5f9bd9ceaa3  5 weeks ago    490 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        70c4abc55055  5 weeks ago    439 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        fb7536807420  5 weeks ago    466 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        69488e7d6948  5 weeks ago    857 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        27f3bf3a2d3d  5 weeks ago    460 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        876a1efeb9a9  5 weeks ago    393 MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                               <none>        d9fb51bc3434  5 weeks ago    462 MB
-registry.redhat.io/lvms4/lvms-rhel9-operator                                 <none>        2b9159626250  6 months ago   218 MB
-registry.redhat.io/openshift-service-mesh-tech-preview/istio-pilot-rhel9     <none>        f740c90dc321  6 months ago   291 MB
-registry.redhat.io/openshift-service-mesh-tech-preview/istio-rhel9-operator  <none>        2b7be54340b4  6 months ago   155 MB
-registry.redhat.io/openshift4/ose-kube-rbac-proxy                            <none>        7e66f8a4c420  19 months ago  456 MB
-docker.io/library/wordpress                                                  6.2.1-apache  b8ee07adfa91  22 months ago  629 MB
-[root@localhost ~]# crictl images
-IMAGE                                                                         TAG                 IMAGE ID            SIZE
-docker.io/library/wordpress                                                   6.2.1-apache        b8ee07adfa917       629MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              d9fb51bc34340       462MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              d5f9bd9ceaa33       490MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              86a73a727e4f0       492MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              03ec3ae43b5e7       579MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              69488e7d69489       857MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              243083e135a20       481MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              3936b2921a18f       657MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              70c4abc55055c       439MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              fb7536807420b       466MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              876a1efeb9a93       393MB
-quay.io/openshift-release-dev/ocp-v4.0-art-dev                                <none>              27f3bf3a2d3da       460MB
-registry.redhat.io/lvms4/lvms-rhel9-operator                                  <none>              2b91596262502       218MB
-registry.redhat.io/openshift-service-mesh-tech-preview/istio-pilot-rhel9      <none>              f740c90dc3217       291MB
-registry.redhat.io/openshift-service-mesh-tech-preview/istio-rhel9-operator   <none>              2b7be54340b4c       155MB
-registry.redhat.io/openshift4/ose-kube-rbac-proxy                             <none>              7e66f8a4c4202       456MB
-[root@localhost ~]# 
+[root@localhost wordpress]# oc get pods -A
+NAMESPACE                  NAME                                       READY   STATUS    RESTARTS      AGE
+kube-system                csi-snapshot-controller-79f48cb65c-qst8w   1/1     Running   0             21h
+openshift-dns              dns-default-pqfnn                          2/2     Running   0             21h
+openshift-dns              node-resolver-r9bhc                        1/1     Running   0             21h
+openshift-ingress          router-default-5c6b6bf9cb-gzrcs            1/1     Running   0             21h
+openshift-ovn-kubernetes   ovnkube-master-5wrgx                       4/4     Running   1 (21h ago)   21h
+openshift-ovn-kubernetes   ovnkube-node-d2wjp                         1/1     Running   1 (21h ago)   21h
+openshift-service-ca       service-ca-7674ff74cb-k8sw8                1/1     Running   0             21h
+openshift-storage          lvms-operator-d6f9c9d4-77wj4               1/1     Running   0             21h
+openshift-storage          vg-manager-gnpbd                           1/1     Running   0             21h
+[root@localhost wordpress]# oc apply -k .
+namespace/example-apps-wordpress created
+serviceaccount/example-apps-wordpress created
+clusterrolebinding.rbac.authorization.k8s.io/system:openshift:scc:anyuid created
+secret/mysql-pass-tmbk2k5m9f created
+service/wordpress created
+service/wordpress-mysql created
+persistentvolumeclaim/mysql-pv-claim created
+persistentvolumeclaim/wp-pv-claim created
+deployment.apps/wordpress created
+deployment.apps/wordpress-mysql created
+route.route.openshift.io/example-apps-wordpress created
+[root@localhost wordpress]# oc get pods -A
+NAMESPACE                  NAME                                       READY   STATUS              RESTARTS      AGE
+example-apps-wordpress     wordpress-ff94c8dcf-khvg9                  0/1     ContainerCreating   0             4s
+example-apps-wordpress     wordpress-mysql-84dd895d65-6ms65           0/1     ContainerCreating   0             4s
+kube-system                csi-snapshot-controller-79f48cb65c-qst8w   1/1     Running             0             21h
+openshift-dns              dns-default-pqfnn                          2/2     Running             0             21h
+openshift-dns              node-resolver-r9bhc                        1/1     Running             0             21h
+openshift-ingress          router-default-5c6b6bf9cb-gzrcs            1/1     Running             0             21h
+openshift-ovn-kubernetes   ovnkube-master-5wrgx                       4/4     Running             1 (21h ago)   21h
+openshift-ovn-kubernetes   ovnkube-node-d2wjp                         1/1     Running             1 (21h ago)   21h
+openshift-service-ca       service-ca-7674ff74cb-k8sw8                1/1     Running             0             21h
+openshift-storage          lvms-operator-d6f9c9d4-77wj4               1/1     Running             0             21h
+openshift-storage          vg-manager-gnpbd                           1/1     Running             0             21h
+[root@localhost wordpress]# oc get pods -A
+NAMESPACE                  NAME                                       READY   STATUS             RESTARTS      AGE
+example-apps-wordpress     wordpress-ff94c8dcf-khvg9                  1/1     Running            0             6s
+example-apps-wordpress     wordpress-mysql-84dd895d65-6ms65           0/1     ImagePullBackOff   0             6s
+kube-system                csi-snapshot-controller-79f48cb65c-qst8w   1/1     Running            0             21h
+openshift-dns              dns-default-pqfnn                          2/2     Running            0             21h
+openshift-dns              node-resolver-r9bhc                        1/1     Running            0             21h
+openshift-ingress          router-default-5c6b6bf9cb-gzrcs            1/1     Running            0             21h
+openshift-ovn-kubernetes   ovnkube-master-5wrgx                       4/4     Running            1 (21h ago)   21h
+openshift-ovn-kubernetes   ovnkube-node-d2wjp                         1/1     Running            1 (21h ago)   21h
+openshift-service-ca       service-ca-7674ff74cb-k8sw8                1/1     Running            0             21h
+openshift-storage          lvms-operator-d6f9c9d4-77wj4               1/1     Running            0             21h
+openshift-storage          vg-manager-gnpbd                           1/1     Running            0             21h
+[root@localhost wordpress]# oc get pods -A
+NAMESPACE                  NAME                                       READY   STATUS             RESTARTS      AGE
+example-apps-wordpress     wordpress-ff94c8dcf-khvg9                  1/1     Running            0             7s
+example-apps-wordpress     wordpress-mysql-84dd895d65-6ms65           0/1     ImagePullBackOff   0             7s
+kube-system                csi-snapshot-controller-79f48cb65c-qst8w   1/1     Running            0             21h
+openshift-dns              dns-default-pqfnn                          2/2     Running            0             21h
+openshift-dns              node-resolver-r9bhc                        1/1     Running            0             21h
+openshift-ingress          router-default-5c6b6bf9cb-gzrcs            1/1     Running            0             21h
+openshift-ovn-kubernetes   ovnkube-master-5wrgx                       4/4     Running            1 (21h ago)   21h
+openshift-ovn-kubernetes   ovnkube-node-d2wjp                         1/1     Running            1 (21h ago)   21h
+openshift-service-ca       service-ca-7674ff74cb-k8sw8                1/1     Running            0             21h
+openshift-storage          lvms-operator-d6f9c9d4-77wj4               1/1     Running            0             21h
+openshift-storage          vg-manager-gnpbd                           1/1     Running            0             21h
+[root@localhost wordpress]# 
+
+[root@localhost wordpress]# crictl images
+IMAGE                                            TAG                 IMAGE ID            SIZE
+docker.io/library/wordpress                      6.2.1-apache        b8ee07adfa917       629MB
+quay.io/openshift-release-dev/ocp-v4.0-art-dev   <none>              d9fb51bc34340       462MB
+quay.io/openshift-release-dev/ocp-v4.0-art-dev   <none>              d5f9bd9ceaa33       490MB
+quay.io/openshift-release-dev/ocp-v4.0-art-dev   <none>              86a73a727e4f0       492MB
+quay.io/openshift-release-dev/ocp-v4.0-art-dev   <none>              03ec3ae43b5e7       579MB
+quay.io/openshift-release-dev/ocp-v4.0-art-dev   <none>              243083e135a20       481MB
+quay.io/openshift-release-dev/ocp-v4.0-art-dev   <none>              3936b2921a18f       657MB
+quay.io/openshift-release-dev/ocp-v4.0-art-dev   <none>              876a1efeb9a93       393MB
+quay.io/openshift-release-dev/ocp-v4.0-art-dev   <none>              27f3bf3a2d3da       460MB
+registry.redhat.io/lvms4/lvms-rhel9-operator     <none>              2b91596262502       218MB
+
+
 
 [root@localhost ~]# mkdir /var/tmp/bootc-upgrade
 [root@localhost ~]# skopeo copy docker://quay.io/rhn_support_arolivei/microshift-4.18-bootc:v2 dir://var/tmp/bootc-upgrade

@@ -5,11 +5,15 @@ ENV USHIFT_VER=4.18
 COPY ./embed_image.sh /usr/bin/
 COPY ./copy_embedded_images.sh /usr/bin/
 
-RUN subscription-manager release --set=9.4
+# Copy redhat.repo
+COPY ["redhat.repo", "/etc/yum.repos.d/"]
+
 RUN dnf config-manager \
         --set-enabled rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms \
-        --set-enabled fast-datapath-for-rhel-9-$(uname -m)-rpms
-RUN dnf update -y && \
+        --set-enabled fast-datapath-for-rhel-9-$(uname -m)-rpms 
+#        --set-enabled rhel-9-for-$(uname -m)-baseos-eus-rpms \
+#        --set-enabled rhel-9-for--$(uname -m)-appstream-eus-rpms
+RUN dnf update --enablerepo=rhel-9-for-$(uname -m)-baseos-eus-rpms --enablerepo=rhel-9-for-x86_64-appstream-eus-rpms -y --releasever=9.4 && \
     dnf clean all
 
 ENV IMAGE_STORAGE_DIR=/usr/lib/containers/storage
