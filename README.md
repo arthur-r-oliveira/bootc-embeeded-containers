@@ -1,38 +1,68 @@
 
+- [Building Appliances for self-contained and disconnected environments with RHEL Image Mode (bootc)](#building-appliances-for-self-contained-and-disconnected-environments-with-rhel-image-mode-bootc)
+  - [Embedding Containers \& Physically-bound images: ship it with the bootc image](#embedding-containers--physically-bound-images-ship-it-with-the-bootc-image)
+  - [General instructions:](#general-instructions)
+    - [Procedures](#procedures)
+      - [Download your redhat pull secrets](#download-your-redhat-pull-secrets)
+      - [Build the base image](#build-the-base-image)
+      - [Build the embedded image](#build-the-embedded-image)
+      - [Create a test environment (KVM based, isolated network)](#create-a-test-environment-kvm-based-isolated-network)
+      - [Build an updated image](#build-an-updated-image)
+      - [Bootc switch \& upgrade](#bootc-switch--upgrade)
+      - [Sample](#sample)
 
-## Building Appliances for self-contained and disconnected environments with RHEL Image Mode (bootc)
+
+# Building Appliances for self-contained and disconnected environments with RHEL Image Mode (bootc)
 
 [About image mode for Red Hat Enterprise Linux (RHEL)](https://docs.redhat.com/en/documentation/red_hat_build_of_microshift/4.18/html-single/installing_with_rhel_image_mode/index#microshift-bootc-conc_microshift-about-rhel-image-mode): _Image mode for Red Hat Enterprise Linux (RHEL) is a Technology Preview deployment method that uses a container-native approach to build, deploy, and manage the operating system as a bootc image. By using bootc, you can build, deploy, and manage the operating system as if it is any other container._
 
 ## Embedding Containers & Physically-bound images: ship it with the bootc image
 [Some use cases require the entire boot image to be fully self contained. That means that everything needed to execute the workloads is shipped with the bootc image, including container images of the application containers and Quadlets. Such images are also referred to as “physically-bound images”.](https://docs.fedoraproject.org/en-US/bootc/embedding-containers/#_physically_bound_images_ship_it_with_the_bootc_image)
 
-### General instructions: 
-- Get started within MicroShift and image-mode (bootc) first https://docs.redhat.com/en/documentation/red_hat_build_of_microshift/4.18/html-single/installing_with_rhel_image_mode/index
+## General instructions: 
+
+Get started within MicroShift and image-mode (bootc) first https://docs.redhat.com/en/documentation/red_hat_build_of_microshift/4.18/html-single/installing_with_rhel_image_mode/index
 - Then, embeed MicroShift and Application Container Images for offline deployments based on this:
-  -  PR https://github.com/openshift/microshift/pull/4739 
-  - https://github.com/ggiguash/microshift/blob/bootc-embedded-image-upgrade-418/docs/contributor/image_mode.md#appendix-b-embedding-container-images-in-bootc-builds 
+  - https://github.com/openshift/microshift/blob/main/docs/contributor/image_mode.md#appendix-b-embedding-container-images-in-bootc-builds
   - https://gitlab.com/fedora/bootc/examples/-/tree/main/physically-bound-images
 
-#### Step by step 
-- Download your redhat pull secrets from https://console.redhat.com/openshift/downloads#tool-pull-secret and place as local file `.pull-secret.json`.
+### Procedures
 
-- Based on these [procedures](https://github.com/ggiguash/microshift/blob/bootc-embedded-image-upgrade-418/docs/contributor/image_mode.md#build-microshift-bootc-image), build the base microshift-bootc image.
-  - `bash -x build-base.sh`
+#### Download your redhat pull secrets
 
-- Based on these [procedures]https://github.com/ggiguash/microshift/blob/bootc-embedded-image-upgrade-418/docs/contributor/image_mode.md#appendix-b-embedding-container-images-in-bootc-builds), using microshift-bootc image built in previous step, embeed the Container Images to your new microshift-bootc-embeed image:
+To get access to Red Hat registries, download your redhat pull secrets from https://console.redhat.com/openshift/downloads#tool-pull-secret and place as local file `.pull-secret.json`.
+
+#### Build the base image
+
+Based on these [procedures](https://github.com/openshift/microshift/blob/main/docs/contributor/image_mode.md#build-microshift-bootc-image), build the base microshift-bootc image: 
+
+`bash -x build-base.sh`
+
+#### Build the embedded image 
+
+Based on these [procedures]https://github.com/openshift/microshift/blob/main/docs/contributor/image_mode.md#appendix-b-embedding-container-images-in-bootc-builds), using microshift-bootc image built in previous step, embeed the Container Images to your new microshift-bootc-embeed image:
+
   - `bash -x build.sh v1. 
-    - That will include the MicroShift payload + an sample wordpress Container image to the bootc image.
-    - Also produces a ISO image, to be used to install RHDE. 
+
+This will include the MicroShift payload + an sample wordpress Container image to the bootc image. It also produces a ISO image, to be used to install RHDE. 
+
+#### Create a test environment (KVM based, isolated network)
+
 - Within your test environment, [create a isolated network](https://github.com/openshift/microshift/blob/main/docs/contributor/image_mode.md#configure-isolated-network).
 - Create a test VM with `create-vm.sh`.
 - Access VM with user `redhat` and set [kubeconfig access to microshift](https://docs.redhat.com/en/documentation/red_hat_build_of_microshift/4.18/html/configuring/microshift-kubeconfig#accessing-microshift-cluster-locally_microshift-kubeconfig)
-- Build the second image with `bash -x build.sh v2`.
-  - That will include RHEL updates + a sample mysql Container image to bootc image tagged as V2.
-  - Also produces a ISO image.
-- Upgrade live system to v2. 
-  - https://docs.fedoraproject.org/en-US/bootc/disconnected-updates/ 
 
+#### Build an updated image
+
+Build the second image with `bash -x build.sh v2`.
+That will include RHEL updates + a sample mysql Container image to bootc image tagged as V2. It also produces a ISO image.
+
+#### Bootc switch & upgrade
+
+Upgrade live system to v2. 
+See for additional context  https://docs.fedoraproject.org/en-US/bootc/disconnected-updates/ 
+
+#### Sample
 ~~~
 [redhat@localhost argocd-example-apps-wordpress-main]$ cd wordpress/
 [redhat@localhost wordpress]$ ll
@@ -314,5 +344,4 @@ Deployments:
                    Digest: sha256:a72864b9478f9d12bc7d5ddb7058d321eb508a340546908360b371e0c6379606
                   Version: 9.20250327.0 (2025-05-07T11:54:42Z)
 [redhat@localhost ~]$ 
-
 ~~~

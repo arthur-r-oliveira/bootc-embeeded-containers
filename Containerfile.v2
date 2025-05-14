@@ -16,6 +16,9 @@ RUN dnf config-manager \
 RUN dnf update --enablerepo=rhel-9-for-$(uname -m)-baseos-eus-rpms --enablerepo=rhel-9-for-x86_64-appstream-eus-rpms -y --releasever=9.4 && \
     dnf clean all
 
+RUN dnf install cockpit* -y --enablerepo=rhel-9-for-$(uname -m)-baseos-eus-rpms --enablerepo=rhel-9-for-x86_64-appstream-eus-rpms -y --releasever=9.4 && \
+    dnf clean all
+
 ENV IMAGE_STORAGE_DIR=/usr/lib/containers/storage
 ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
 
