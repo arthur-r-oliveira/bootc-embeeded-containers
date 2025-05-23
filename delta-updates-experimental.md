@@ -2,9 +2,9 @@
 About extracting OSTree commits from OCI https://github.com/coreos/rpm-ostree/blob/main/docs/container.md#mapping-container-images-back-to-ostree
 
 About OSTree delta updates, see references at: 
-[1] https://ostreedev.github.io/ostree/copying-deltas/#static-deltas-for-offline-updates
-[2] https://sigs.centos.org/automotive/building/creating_static_deltas/#making-offline-updates
-[3] https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/composing_installing_and_managing_rhel_for_edge_images/creating-and-managing-ostree-image-updates_composing-installing-managing-rhel-for-edge-images#performing-updates-by-using-static-deltas_creating-and-managing-ostree-image-updates
+- https://ostreedev.github.io/ostree/copying-deltas/#static-deltas-for-offline-updates
+- https://sigs.centos.org/automotive/building/creating_static_deltas/#making-offline-updates
+-  https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/composing_installing_and_managing_rhel_for_edge_images/creating-and-managing-ostree-image-updates_composing-installing-managing-rhel-for-edge-images#performing-updates-by-using-static-deltas_creating-and-managing-ostree-image-updates
 
 ## Setup 
 Let's assume that you have two bootc (OCI) images, a v1 with the initial state of your system and a v2 with the OS updated and additional container images embeeed to it: 
