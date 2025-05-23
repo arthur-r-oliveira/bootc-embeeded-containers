@@ -1,5 +1,5 @@
-#FROM registry.redhat.io/rhel9-eus/rhel-9.4-bootc:9.4
-FROM registry.distributed-ci.io/rhel9/rhel-bootc:9.6-1745774951
+FROM registry.redhat.io/rhel9-eus/rhel-9.4-bootc:9.4
+#FROM registry.distributed-ci.io/rhel9/rhel-bootc:9.6-1745774951
 ARG USHIFT_VER=4.18
 
 RUN . /etc/os-release && dnf upgrade -y --releasever="${VERSION_ID}" && \
