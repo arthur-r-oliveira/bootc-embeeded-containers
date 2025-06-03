@@ -25,6 +25,7 @@ Get started within MicroShift and image-mode (bootc) first https://docs.redhat.c
 - Then, embeed MicroShift and Application Container Images for offline deployments based on this:
   - https://github.com/openshift/microshift/blob/main/docs/contributor/image_mode.md#appendix-b-embedding-container-images-in-bootc-builds
   - https://gitlab.com/fedora/bootc/examples/-/tree/main/physically-bound-images
+  - https://developers.redhat.com/articles/2025/05/29/how-embed-containers-image-mode-rhel#embed_quadlets_into_a_bootc_image
 
 ### Procedures
 
