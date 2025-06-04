@@ -16,4 +16,7 @@ podman build --authfile "${PULL_SECRET}" -t "${IMAGE_NAME}:${TAG}" \
 #podman push localhost/"${IMAGE_NAME}" "${REGISTRY_URL}/${REGISTRY_IMG}"
 
 echo "#### creating ISO from bootc image"
-podman run --authfile ${PULL_SECRET} --rm -it     --privileged     --security-opt label=type:unconfined_t     -v /var/lib/containers/storage:/var/lib/containers/storage     -v ./output:/output     registry.redhat.io/rhel9/bootc-image-builder:latest     --local     --type iso     localhost/${IMAGE_NAME}:${TAG}
+podman run --authfile ${PULL_SECRET} --rm -it --privileged \
+    --security-opt label=type:unconfined_t -v /var/lib/containers/storage:/var/lib/containers/storage \
+    -v ./output:/output     registry.redhat.io/rhel9/bootc-image-builder:latest \
+    --local     --type iso     localhost/${IMAGE_NAME}:${TAG}
