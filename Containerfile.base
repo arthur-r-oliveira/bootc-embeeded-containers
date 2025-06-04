@@ -46,3 +46,5 @@ WantedBy=multi-user.target
 EOF
 
 RUN systemctl enable microshift-make-rshared.service
+
+COPY wordpress/* /usr/lib/microshift/manifestsd./

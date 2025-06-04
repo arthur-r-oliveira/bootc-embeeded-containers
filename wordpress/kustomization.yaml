@@ -1,0 +1,11 @@
+secretGenerator:
+- name: mysql-pass
+  namespace: example-apps-wordpress
+  literals:
+  - password=admin123
+resources:
+  - wordpress-namespace.yaml
+  - serviceaccount.yaml
+  - clusterrolebind.yaml
+  - mysql-deployment.yaml
+  - wordpress-deployment.yaml

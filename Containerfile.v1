@@ -27,7 +27,7 @@ RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json \
 # Then for Applications
 RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json <<PULL
     /usr/bin/embed_image.sh docker.io/library/wordpress:6.2.1-apache
-#    /usr/bin/embed_image.sh docker.io/library/mysql:8.0
+    /usr/bin/embed_image.sh docker.io/library/mysql:8.0
 PULL
 
 # 
