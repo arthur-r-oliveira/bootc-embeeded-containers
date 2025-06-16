@@ -1,57 +1,8 @@
 #FROM registry.redhat.io/rhel9/rhel-bootc:9.4
 FROM localhost/microshift-4.18-bootc-embeeded:v1
-ENV USHIFT_VER=4.18
-
-COPY ./embed_image.sh /usr/bin/
-COPY ./copy_embedded_images.sh /usr/bin/
-
-# Copy redhat.repo
-COPY ["redhat.repo", "/etc/yum.repos.d/"]
 
 RUN dnf config-manager \
         --set-enabled rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms \
         --set-enabled fast-datapath-for-rhel-9-$(uname -m)-rpms 
-#        --set-enabled rhel-9-for-$(uname -m)-baseos-eus-rpms \
-#        --set-enabled rhel-9-for--$(uname -m)-appstream-eus-rpms
 RUN dnf update --enablerepo=rhel-9-for-$(uname -m)-baseos-eus-rpms --enablerepo=rhel-9-for-x86_64-appstream-eus-rpms -y --releasever=9.4 && \
     dnf clean all
-
-RUN dnf install cockpit* -y --enablerepo=rhel-9-for-$(uname -m)-baseos-eus-rpms --enablerepo=rhel-9-for-x86_64-appstream-eus-rpms -y --releasever=9.4 && \
-    dnf clean all
-
-ENV IMAGE_STORAGE_DIR=/usr/lib/containers/storage
-ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
-
-# Pull the container images into /usr/lib/containers/storage:
-# - Each image goes into a separate sub-directory
-# - Sub-directories are named after the image reference string SHA
-# - An image list file maps image references to their name SHA
-# First for MicroShift payload
-RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json \
-    images="$(jq -r ".images[]" /usr/share/microshift/release/release-"$(uname -m)".json)" ; \
-    mkdir -p "${IMAGE_STORAGE_DIR}" ; \
-    for img in ${images} ; do \
-       /usr/bin/embed_image.sh ${img} --authfile /run/secrets/pull-secret.json ; \
-     done 
-# Then for Applications
-RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json <<PULL
-/usr/bin/embed_image.sh docker.io/library/wordpress:6.2.1-apache
-/usr/bin/embed_image.sh docker.io/library/mysql:8.0
-PULL
-
-# 
-RUN cat > /usr/bin/microshift-copy-images <<EOF
-#!/bin/bash
-set -eux -o pipefail
-while IFS="," read -r img sha ; do
-    skopeo copy --preserve-digests \
-        "dir:${IMAGE_STORAGE_DIR}/\${sha}" \
-        "containers-storage:\${img}"
-done < "${IMAGE_LIST_FILE}"
-EOF
-
-RUN mkdir -p /etc/systemd/system/microshift.service.d
-RUN cat > /etc/systemd/system/microshift.service.d/microshift-copy-images.conf <<EOF
-[Service]
-ExecStartPre=/bin/bash /usr/bin/microshift-copy-images
-EOF

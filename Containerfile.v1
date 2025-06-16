@@ -9,6 +9,7 @@ ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
 
 # use to embed application images
 COPY ./embed_image.sh /usr/bin/
+COPY ./copy_embedded_images.sh /usr/bin/
 
 ENV IMAGE_STORAGE_DIR=/usr/lib/containers/storage
 ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
@@ -31,18 +32,9 @@ RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json <<PULL
 PULL
 
 # 
-RUN cat > /usr/bin/microshift-copy-images <<EOF
-#!/bin/bash
-set -eux -o pipefail
-while IFS="," read -r img sha ; do
-    skopeo copy --preserve-digests \
-        "dir:${IMAGE_STORAGE_DIR}/\${sha}" \
-        "containers-storage:\${img}"
-done < "${IMAGE_LIST_FILE}"
-EOF
 
 RUN mkdir -p /etc/systemd/system/microshift.service.d
 RUN cat > /etc/systemd/system/microshift.service.d/microshift-copy-images.conf <<EOF
 [Service]
-ExecStartPre=/bin/bash /usr/bin/microshift-copy-images
+ExecStartPre=/bin/bash /usr/bin/copy_embedded_images.sh
 EOF
