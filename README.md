@@ -1081,6 +1081,21 @@ ostree.summary.indexed-deltas: true
 [root@rhel94-local repo]# 
 ~~~
 
+
+Identify the final image commit. From our output, this is the commit associated with your microshift...:v2 image:
+1ee86936c0463da392589e3f491be3b99a5d4c6f158d17e845261f048196c5cd
+
+Create a new ref pointing to that single commit. Let's create a new, clean ref called microshift/v2-stable.
+~~~
+# ostree --repo=/root/repo refs 1ee86936c0463da392589e3f491be3b99a5d4c6f158d17e845261f048196c5cd --create=microshift/v2-stable
+~~~
+Verify the result. Now if you list your refs, you will see your new, clean ref alongside all the internal ones.
+
+~~~
+# ostree --repo=/root/repo refs
+~~~
+
+
 tar.gz it and transfer to the target bootc system to get updated:
 ~~~
 [root@rhel94-local ~]# tar zcvf repo.tar.gz repo/
@@ -1105,14 +1120,20 @@ repo/objects/ff/351d2e6c1a759264f5cce12db156af197fbe5c112dbb9c8d2346e39dc6886e.d
 repo/.lock
 repo/summary
 
+##
+[root@localhost ~]# mkdir -p /var/tmp/ostree-updates
+[root@localhost ~]# chown redhat: /var/tmp/ostree-updates
+[root@localhost ~]# 
+
+##
+
 [root@rhel94-local ~]# scp repo.tar.gz redhat@192.168.111.198:/var/tmp/ostree-updates
 redhat@192.168.111.198's password: 
 repo.tar.gz                                                                                                                                100% 4069MB 543.7MB/s   00:07    
 [root@rhel94-local ~]# 
 ~~~
 
-Apply the OStree repo: 
-
+Check the status of target system to get updated: 
 ~~~
 [root@rhel94-local ~]# ssh redhat@192.168.111.198
 redhat@192.168.111.198's password: 
@@ -1155,12 +1176,28 @@ Deployments:
                    Staged: no
                 StateRoot: default
 [root@localhost ostree-updates]# 
+~~~
 
-[root@localhost ostree-updates]# ostree remote add local /var/tmp/ostree-updates/repo
-[root@localhost ostree-updates]# cat /etc/ostree/remotes.d/local.conf
-[remote "local"]
-url=/var/tmp/ostree-updates/repo
-[root@localhost ostree-updates]# 
+Add the Local Repository as a Remote:
+~~~
+# ostree remote add --no-gpg-verify offline-update file:///var/tmp/ostree-updates/repo
+~~~
 
+Inspect the repo: 
+~~~
+[root@localhost ostree-updates]# ostree --repo=/var/tmp/ostree-updates/repo refs|head
+microshift/v2-stable
+ostree/container/blob/sha256_3A_05d6802717d74e2078d81a328c6ae1988a93d8f1ceb0203146d2c676c5e320b5
 
+[root@localhost ostree-updates]# ostree --repo=/var/tmp/ostree-updates/repo show microshift/v2-stable
+commit 1ee86936c0463da392589e3f491be3b99a5d4c6f158d17e845261f048196c5cd
+ContentChecksum:  ded3a75076ca086a4eb4c62e816d83e3be21feec00aa5eb146cd9f41deb1a6ff
+Date:  2025-06-13 17:59:53 +0000
+(no subject)
+~~~
+
+~~~
+[root@localhost ~]# ostree --repo=/var/tmp/ostree-updates/repo pull-local /sysroot/ostree/repo
+195 metadata, 31 content objects imported; 0 bytes content written                                                                                                           
+[root@localhost ~]# 
 ~~~

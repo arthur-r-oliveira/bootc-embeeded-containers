@@ -1,5 +1,6 @@
 #FROM registry.redhat.io/rhel9/rhel-bootc:9.4
 FROM localhost/microshift-4.18-bootc-embeeded:v1
+ARG USHIFT_VER=4.18
 
 RUN dnf config-manager \
         --set-enabled rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms \
