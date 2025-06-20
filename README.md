@@ -17,6 +17,7 @@
         - [Generate Delta Using Tar-Diff](#generate-delta-using-tar-diff)
         - [Reconstruct v2 from the delta On the Local Registry](#reconstruct-v2-from-the-delta-on-the-local-registry)
         - [Patching Host](#patching-host)
+      - [Experimental - "Delta Updates" with tar-diff - RHEL 9.4 to RHEL 9.6](#experimental---delta-updates-with-tar-diff---rhel-94-to-rhel-96)
 
 
 # Building Appliances for self-contained and disconnected environments with RHEL Image Mode (bootc)
@@ -1120,4 +1121,223 @@ status:
   rollbackQueued: false
   type: bootcHost
 [redhat@microshift-4 ~]$ 
+~~~
+
+#### Experimental - "Delta Updates" with tar-diff - RHEL 9.4 to RHEL 9.6
+
+Create a new Containerfile, or a version of it, within RHEL 9.6 and MicroShift 4.19 as target releases: 
+
+Containerfile.v3:
+~~~
+FROM localhost/microshift-4.18-bootc-embeeded:v2
+ARG USHIFT_VER=4.19
+ARG RHEL_VER=9.6
+
+RUN dnf config-manager \
+        --set-enabled rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms \
+        --set-enabled fast-datapath-for-rhel-9-$(uname -m)-rpms 
+RUN dnf update --enablerepo=rhel-9-for-$(uname -m)-baseos-eus-rpms --enablerepo=rhel-9-for-x86_64-appstream-eus-rpms -y --releasever=${RHEL_VER} && \
+    dnf clean all
+~~~
+
+Build V3: 
+
+~~~
+[root@rhel94-local bootc-embeeded-containers]# bash -x build.sh v3 > build-v3.out 2>&1
+[root@rhel94-local bootc-embeeded-containers]# 
+[root@rhel94-local bootc-embeeded-containers]# podman images|egrep "microshift"
+localhost/microshift-4.19-bootc-embeeded       v3                    794e6fd07768  2 minutes ago  7.13 GB
+localhost/microshift-4.18-bootc-embeeded       v2                    5f3b9b9fdb86  2 days ago     4.99 GB
+localhost:5000/microshift-4.18-bootc-embeeded  v2                    5f3b9b9fdb86  2 days ago     4.99 GB
+[root@rhel94-local bootc-embeeded-containers]# 
+~~~
+
+Export and build the delta from v2. 
+~~~
+[root@rhel94-local deltas]# podman save -o microshift-4.19-bootc-embeeded-v3.tar microshift-4.19-bootc-embeeded:v3
+Copying blob 520d77fe5a18 done   | 
+Copying blob 520d77fe5a18 done   | 
+Copying blob 520d77fe5a18 done   | 
+(..)
+Copying blob 7422246cd71c done   | 
+Copying config 794e6fd077 done   | 
+Writing manifest to image destination
+[root@rhel94-local deltas]# 
+[root@rhel94-local deltas]# 
+[root@rhel94-local deltas]# du -sm microshift-4.18-bootc-embeeded-v2.tar microshift-4.19-bootc-embeeded-v3.tar
+4761	microshift-4.18-bootc-embeeded-v2.tar
+6796	microshift-4.19-bootc-embeeded-v3.tar
+[root@rhel94-local deltas]# 
+
+[root@rhel94-local deltas]# tar-diff microshift-4.18-bootc-embeeded-v2.tar microshift-4.19-bootc-embeeded-v3.tar delta_microshift-4.19-bootc-embeeded-v3.tar
+[root@rhel94-local deltas]# echo $?
+0
+[root@rhel94-local deltas]# 
+[root@rhel94-local deltas]# du -sm microshift-4.18-bootc-embeeded-v2.tar microshift-4.19-bootc-embeeded-v3.tar delta_microshift-4.19-bootc-embeeded-v3.tar 
+4761	microshift-4.18-bootc-embeeded-v2.tar
+6796	microshift-4.19-bootc-embeeded-v3.tar
+1075	delta_microshift-4.19-bootc-embeeded-v3.tar
+[root@rhel94-local deltas]# 
+~~~
+
+Reconstruct v3 from the delta On the Local Registry
+
+~~~
+[root@rhel94-local deltas]#  tar -xf reconstructed_microshift-4.18-bootc-embeeded-v2.tar -C base-image
+[root@rhel94-local deltas]#  tar -xf reconstructed_microshift-4.18-bootc-embeeded-v2.tar -C base-image
+[root@rhel94-local deltas]# du -sm base-image/
+4761	base-image/
+[root@rhel94-local deltas]#  podman load -i reconstructed_microshift-4.19-bootc-embeeded-v3.tar
+
+[root@rhel94-local deltas]# du -sm reconstructed_microshift-4.19-bootc-embeeded-v3.tar microshift-4.19-bootc-embeeded-v3.tar
+6796	reconstructed_microshift-4.19-bootc-embeeded-v3.tar
+6796	microshift-4.19-bootc-embeeded-v3.tar
+[root@rhel94-local deltas]# md5sum reconstructed_microshift-4.19-bootc-embeeded-v3.tar microshift-4.19-bootc-embeeded-v3.tar
+127bb624d8a321e1db51642fa2d9d48b  reconstructed_microshift-4.19-bootc-embeeded-v3.tar
+127bb624d8a321e1db51642fa2d9d48b  microshift-4.19-bootc-embeeded-v3.tar
+[root@rhel94-local deltas]# 
+[root@rhel94-local deltas]# podman load -i reconstructed_microshift-4.19-bootc-embeeded-v3.tar
+[root@rhel94-local deltas]# podman tag microshift-4.19-bootc-embeeded:v3 localhost:5000/microshift-4.19-bootc-embeeded:v3
+[root@rhel94-local deltas]# podman push localhost:5000/microshift-4.19-bootc-embeeded:v3
+Getting image source signatures
+Copying blob 18ab149f0f36 skipped: already exists  
+Copying blob 18ab149f0f36 skipped: already exists  
+Copying blob 8bfc0e089ba9 skipped: already exists
+Copying blob d5ea898e1bae skipped: already exists  
+Copying config 794e6fd077 done   | 
+Writing manifest to image destination
+[root@rhel94-local deltas]# 
+
+~~~
+
+Apply to the target system. This is a bit bigger payload, as we upgrade from 9.4 to 9.6:
+~~~
+[redhat@microshift-4 ~]$ sudo bootc switch 192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3
+[sudo] password for redhat: 
+layers already present: 82; layers needed: 2 (1.2 GB)
+Fetched layers: 1.13 GiB in 33 seconds (35.34 MiB/s)
+Queued for next boot: 192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3
+  Version: 9.20250429.0
+  Digest: sha256:68c867a1ce810e99bf30a0bbc8e560c1aebca04912b38ca75e5ea923bd0b3d43
+[redhat@microshift-4 ~]$ sudo bootc status
+apiVersion: org.containers.bootc/v1alpha1
+kind: BootcHost
+metadata:
+  name: host
+spec:
+  image:
+    image: 192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3
+    transport: registry
+  bootOrder: default
+status:
+  staged:
+    image:
+      image:
+        image: 192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3
+        transport: registry
+      version: 9.20250429.0
+      timestamp: null
+      imageDigest: sha256:68c867a1ce810e99bf30a0bbc8e560c1aebca04912b38ca75e5ea923bd0b3d43
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    store: ostreeContainer
+    ostree:
+      checksum: c5e8a63f74234cff4861a89deb1a3a0e13c0bc77621fd0a984f30c752a5dc34e
+      deploySerial: 0
+  booted:
+    image:
+      image:
+        image: 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+        transport: registry
+      version: 9.20250429.0
+      timestamp: null
+      imageDigest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    store: ostreeContainer
+    ostree:
+      checksum: abf40b982c71b69c7da4cbf8ec08c9ea2ba608785a11319650d3149cea2cb1a9
+      deploySerial: 0
+  rollback:
+    image:
+      image:
+        image: localhost/microshift-4.18-bootc-embedded
+        transport: registry
+      version: 9.20250429.0
+      timestamp: null
+      imageDigest: sha256:3fca0adf6e1233c9fdfd4f2dcc52474386c65c657aece047d6ff95d4bc951cac
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    store: ostreeContainer
+    ostree:
+      checksum: c44783039070260d412378f2f5e5650f8ff3187b32e5e156f8778afaad526dab
+      deploySerial: 0
+  rollbackQueued: false
+  type: bootcHost
+[redhat@microshift-4 ~]$ sudo rpm-ostree status
+State: idle
+Deployments:
+  ostree-unverified-registry:192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3
+                   Digest: sha256:68c867a1ce810e99bf30a0bbc8e560c1aebca04912b38ca75e5ea923bd0b3d43
+                  Version: 9.20250429.0 (2025-06-20T16:52:22Z)
+                     Diff: 280 upgraded, 1 removed, 12 added
+
+● ostree-unverified-registry:192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+                   Digest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+                  Version: 9.20250429.0 (2025-06-18T08:22:10Z)
+
+  ostree-unverified-registry:localhost/microshift-4.18-bootc-embedded
+                   Digest: sha256:3fca0adf6e1233c9fdfd4f2dcc52474386c65c657aece047d6ff95d4bc951cac
+                  Version: 9.20250429.0 (2025-06-17T16:38:19Z)
+[redhat@microshift-4 ~]$ 
+[redhat@microshift-4 ~]$ cat /etc/redhat-release 
+Red Hat Enterprise Linux release 9.4 (Plow)
+[redhat@microshift-4 ~]$ uname -a
+Linux microshift-4.18-bootc-isolated-v1 5.14.0-427.65.1.el9_4.x86_64 #1 SMP PREEMPT_DYNAMIC Fri Apr 11 15:52:56 EDT 2025 x86_64 x86_64 x86_64 GNU/Linux
+[redhat@microshift-4 ~]$ 
+
+[redhat@microshift-4 ~]$ sudo bootc upgrade --apply 
+No changes in 192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3 => sha256:68c867a1ce810e99bf30a0bbc8e560c1aebca04912b38ca75e5ea923bd0b3d43
+Staged update present, not changed.
+Rebooting system
+Connection to 192.168.111.227 closed by remote host.
+Connection to 192.168.111.227 closed.
+arolivei@arolivei-thinkpadp16vgen1:~/VirtualMachines$ ssh redhat@192.168.111.227
+redhat@192.168.111.227's password: 
+Activate the web console with: systemctl enable --now cockpit.socket
+
+Last login: Fri Jun 20 12:33:12 2025 from 192.168.111.1
+[redhat@microshift-4 ~]$ uname -a
+Linux microshift-4.18-bootc-isolated-v1 5.14.0-427.65.1.el9_4.x86_64 #1 SMP PREEMPT_DYNAMIC Fri Apr 11 15:52:56 EDT 2025 x86_64 x86_64 x86_64 GNU/Linux
+[redhat@microshift-4 ~]$ cat /etc/redhat-release 
+Red Hat Enterprise Linux release 9.6 (Plow)
+[redhat@microshift-4 ~]$ microshift version
+MicroShift Version: 4.19.0
+Base OCP Version: 4.19.0
+[redhat@microshift-4 ~]$ sudo bootc status
+[sudo] password for redhat: 
+● Booted image: 192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3
+        Digest: sha256:68c867a1ce810e99bf30a0bbc8e560c1aebca04912b38ca75e5ea923bd0b3d43
+       Version: 9.20250429.0 (2025-06-20 16:52:22.572120574 UTC)
+
+  Rollback image: 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+          Digest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+         Version: 9.20250429.0 (2025-06-18 08:22:10.491931738 UTC)
+[redhat@microshift-4 ~]$ sudo rpm-ostree status
+State: idle
+Deployments:
+● ostree-unverified-registry:192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3
+                   Digest: sha256:68c867a1ce810e99bf30a0bbc8e560c1aebca04912b38ca75e5ea923bd0b3d43
+                  Version: 9.20250429.0 (2025-06-20T16:52:22Z)
+
+  ostree-unverified-registry:192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+                   Digest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+                  Version: 9.20250429.0 (2025-06-18T08:22:10Z)
+[redhat@microshift-4 ~]$ 
+
+
+
 ~~~

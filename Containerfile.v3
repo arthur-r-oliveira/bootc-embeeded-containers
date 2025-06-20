@@ -1,0 +1,9 @@
+FROM localhost/microshift-4.18-bootc-embeeded:v2
+ARG USHIFT_VER=4.19
+ARG RHEL_VER=9.6
+
+RUN dnf config-manager \
+        --set-enabled rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms \
+        --set-enabled fast-datapath-for-rhel-9-$(uname -m)-rpms 
+RUN dnf update --enablerepo=rhel-9-for-$(uname -m)-baseos-eus-rpms --enablerepo=rhel-9-for-x86_64-appstream-eus-rpms -y --releasever=${RHEL_VER} && \
+    dnf clean all
