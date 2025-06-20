@@ -356,6 +356,8 @@ Deployments:
 
 #### Experimental - "Delta Updates" with tar-diff 
 
+__Note: Kudos to Hrushabh Sirsulwar <hsirsulw@redhat.com> who suggested this approach.__ 
+
 Traditional container image updates are too large for bandwidth-constrained far-edge devices. To address this, we would like to use delta updates, which only download the changes between layers. This significantly reduces data transfer while ensuring the updated image is identical to the full version.
 
 Although bootc systems are based on OStree, which does support deltas, going through this path is very probamatic from management perspective as you lose all the benefits of bootc going through OCI standards. 
