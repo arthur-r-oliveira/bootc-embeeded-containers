@@ -10,8 +10,13 @@
       - [Build an updated image](#build-an-updated-image)
       - [Bootc switch \& upgrade](#bootc-switch--upgrade)
       - [Sample](#sample)
-      - [Experimental - OSTree updates bypassing bootc utilities.](#experimental---ostree-updates-bypassing-bootc-utilities)
+      - [Experimental - "Delta Updates" with tar-diff](#experimental---delta-updates-with-tar-diff)
         - [Updating our Bootc image with latest updates.](#updating-our-bootc-image-with-latest-updates)
+        - [Export Images to .tar](#export-images-to-tar)
+        - [Installing tar-diff and tar-patch from source (to raise a issue to the repo):](#installing-tar-diff-and-tar-patch-from-source-to-raise-a-issue-to-the-repo)
+        - [Generate Delta Using Tar-Diff](#generate-delta-using-tar-diff)
+        - [Reconstruct v2 from the delta On the Local Registry](#reconstruct-v2-from-the-delta-on-the-local-registry)
+        - [Patching Host](#patching-host)
 
 
 # Building Appliances for self-contained and disconnected environments with RHEL Image Mode (bootc)
@@ -349,16 +354,43 @@ Deployments:
 [redhat@localhost ~]$ 
 ~~~
 
-#### Experimental - OSTree updates bypassing bootc utilities.
+#### Experimental - "Delta Updates" with tar-diff 
 
-As it is possible [extract OSTree commits from OCI](https://github.com/coreos/rpm-ostree/blob/main/docs/container.md#mapping-container-images-back-to-ostree), within this test we are: 
+Traditional container image updates are too large for bandwidth-constrained far-edge devices. To address this, we would like to use delta updates, which only download the changes between layers. This significantly reduces data transfer while ensuring the updated image is identical to the full version.
 
-- Updating our Bootc image with latest updates. 
-- Extracting all OSTree repository from the updated OCI. 
-- Transfer the full OStree repository to a disconnected system and apply the updates. 
-- Observe the healthy of the system and bootc status over the time. 
+Although bootc systems are based on OStree, which does support deltas, going through this path is very probamatic from management perspective as you lose all the benefits of bootc going through OCI standards. 
+
+while reseraching for solutions, we've find out [`containers/tar-diff`](https://github.com/containers/tar-diff), which is a command-line utility designed to efficiently create and apply binary differences between two tar archives.
+
+Its main purpose is to reduce the size of updates for container images by generating a small "delta" file that represents only the changes between an old image layer and a new one. This delta can then be used with the original layer to reconstruct the new version.
+
+While containers/tar-diff is a functional tool, its application for producing and distributing delta updates for container images is not a universally supported feature across all container registries and engines. This capability exists within a specific ecosystem of tools that have implemented experimental support for OCI image delta updates.
 
 DISCLAIMER: **THIS IS NOT A SUPPORTED UPGRADE PATH FOR BOOTC SYSTEMS. Beying tested and documented with the intension of exploration only.**
+
+**Requirements on Build System**
+- `base-image.tar` or an equivalent OCI-formatted image
+This is the original, older version of the image. The build system needs access to this file to use it as the "before" state for comparison.
+
+- `updated-image.tar` or an equivalent OCI-formatted image
+This is the complete, new version of the image that the build system must first produce from the latest source code. It serves as the "after" state for the comparison.
+
+- `tar-diff` binary (from the tar-diff toolset)
+This is the essential utility used by the build system to compare the base-image.tar with the updated-image.tar. The tool's output is the delta_base_target.tar file.
+
+**Requirements on Target System**
+
+- Access to a OCI Registry within the same Isolated LAN, although could also be embeeded to the running edge system. 
+
+- `base-image.tar` or an equivalent OCI-formatted image
+ The base image must be available on-site, but it does not need to reside directly on the edge system. It can be stored on an on-site bastion host, local repository, or any system within the same network. This image will serve as the foundation for applying the delta.
+
+
+- `delta_base_target.tar' (the delta update)
+ This delta file contains only the differences between the base and updated images. It is significantly smaller than the full image and can be transferred to the site over the internet or any suitable medium.
+
+- `tar-patch` binary (from the tar-diff toolset)
+ This utility is essential for reconstructing the updated image on the target system. It combines the base image with the delta to produce the final image tarba
 
 ##### Updating our Bootc image with latest updates. 
 
@@ -632,572 +664,458 @@ This system is not registered with an entitlement server. You can use subscripti
 50 files removed
 COMMIT microshift-4.18-bootc-embeeded:v2
 --> caa7e025d75f
-[root@rhel94-local bootc-embeeded-containers]# podman images|grep microshift
-localhost/microshift-4.18-bootc-embeeded         v2                    caa7e025d75f  4 minutes ago   6.66 GB
-localhost/microshift-4.18-bootc-embeeded         v1                    c8a50dc29df5  4 days ago      6.26 GB
-localhost/microshift-4.18-bootc                  latest                778da22563f5  4 days ago      2.38 GB
+[root@rhel94-local ~]# podman images|grep microshift|grep local
+localhost/microshift-4.18-bootc-embeeded                     v2                    5f3b9b9fdb86  2 days ago     4.99 GB
+localhost/microshift-4.18-bootc-embeeded                     v1                    39c7901b7b89  2 days ago     4.6 GB
+localhost/microshift-4.18-bootc                              latest                778da22563f5  10 days ago    2.38 GB
 [root@rhel94-local bootc-embeeded-containers]# 
 ~~~
 
-Create a local OSTree repo and pull the OSTree Commits from OCI:
+##### Export Images to .tar
+
+Use podman save to export the images:
+~~~
+podman save -o base-image.tar localhost/delta-oci-image:v1
+podman save -o updated-image.tar localhost/delta-oci-image:v2
+~~~
+
+In our sample here, our updated OCI `microshift-4.18-bootc-embeeded:v2` is built from `microshift-4.18-bootc-embeeded:v1` and it does include only baseOS updates with ~390Mbytes of size. 
 
 ~~~
-[root@rhel94-local ~]# mkdir repo
-mkdir: cannot create directory ‘repo’: File exists
-[root@rhel94-local ~]# ostree --repo=/root/repo init
-[root@rhel94-local ~]# ostree container image pull --insecure-skip-tls-verification /root/repo ostree-unverified-registry:quay.io/rhn_support_arolivei/microshift-4.18-bootc-embeeded:v2
-layers already present: 0; layers needed: 82 (5.3 GB)
- 61.99 MiB [████░░░░░░░░░░░░░░░░] (0s) Fetching layer sha256:d26ef76e8676 (307.9 MB)   
+[root@rhel94-local ~]# podman images|grep microshift|grep local
+localhost/microshift-4.18-bootc-embeeded                     v2                    5f3b9b9fdb86  2 days ago     4.99 GB
+localhost/microshift-4.18-bootc-embeeded                     v1                    39c7901b7b89  2 days ago     4.6 GB
+localhost/microshift-4.18-bootc                              latest                778da22563f5  10 days ago    2.38 GB
+[root@rhel94-local ~]# podman save -o microshift-4.18-bootc-embeeded-v1.tar localhost/microshift-4.18-bootc-embeeded:v1
+Copying blob 520d77fe5a18 done   | 
+Copying blob 520d77fe5a18 done   | 
+Copying blob 520d77fe5a18 done   | 
+Copying blob 8b1ca488d473 done   | 
+Copying blob a16a8823dad8 done   | 
+Copying blob 5fa3edd23413 done   | 
+Copying blob 84ee3ae1b356 done   | 
+Copying config 39c7901b7b done   | 
 (..)
-~~~
-
-Check repo's metadata:
-~~~
-[root@rhel94-local repo]# du -sm .
-5368	.
-[root@rhel94-local repo]# ostree --repo=/root/repo summary -u
-[root@rhel94-local repo]# ostree --repo=/root/repo summary -v
-OT: using fuse: 0
-* ostree/container/blob/sha256_3A_05d6802717d74e2078d81a328c6ae1988a93d8f1ceb0203146d2c676c5e320b5
-    Latest Commit (86 bytes):
-      a5e7cdb2b6ff702a09c790d61751c5eb2555847adb0dbe74bacc7959498e4615
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_0643e31e10c3f6d24b2ff40243d30bb558cd7d90e4a74392d7a7c89ecb3f0f9c
-    Latest Commit (86 bytes):
-      a693c9e9141991accf165fac6ea52d078dbaa9077f142f432a4dd6a891da5522
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_123a23fee02fcea5ba915c8c3f99df711e8bb8f0aeaff19c2de249a00106525f
-    Latest Commit (86 bytes):
-      4eb2e948b002ea90c3c41a1ce1390615de392334dd9f96d124704c1a987cf583
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_13dd1760bac04dd71abfc3984673ba4db8330a00d74a16d1681a643f7785957b
-    Latest Commit (86 bytes):
-      2b1c8b82102ccb09487b3b34728b9ed37a3c3e99178338c00fbd85e4a1aa7c1d
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_15736c42742c29fb33b3f74eb15b57c6f5b08a444bff54696128221f6051c3d4
-    Latest Commit (86 bytes):
-      11ebe23c63fdd631edc9e099568eaa7bbe9c34f2e797578c97009d30ddc2e025
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_18ab149f0f36fd9d5132410fa67e65e77b5b0f9b94e234b5d17af5bb0506e371
-    Latest Commit (86 bytes):
-      ef14df537f9f474431a984c0a397d89002d20f2690d50c80128617d318c88eeb
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_1966f2c5fedb219be6a80a356b230cdfd733afa8a00921d0e5247f167bafb89f
-    Latest Commit (86 bytes):
-      f410f2ea86f7705f0ea4d0deaeaf2164e3778c0c50402b3a47510fdbec8205fe
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_202ad3fe1cd4ab7f9a29adbd9d29ef9f6b6df03977cec1b6edd1447da80182d7
-    Latest Commit (86 bytes):
-      66c164ec913cfd8c5abd01dbb22b9d4c2078cb340516dc2b74af1ce87d41ac50
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_21b080004e82d1fcf3047e8151994cead0c4f3a1532c3deff7e9bfa7aa7af663
-    Latest Commit (86 bytes):
-      760b3b14c5094cfe02e97efda621db52823ba69cf2a8e512002f2ca79c843aea
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_242bd4b7d70ceb6c7890537ad517d2e9ad05fdab4e4279e3c8ed928bc1b56cdd
-    Latest Commit (86 bytes):
-      c01e886dd146f023771607aa756a641710698f0ef6025b0becedbc47ab2b3027
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_247f1cfe37bdc5bc68d1efe9745a323f4bb75b92f0ba58cf12b1e8613131758f
-    Latest Commit (86 bytes):
-      d584099852c3ab50c7d2b9c88e7b36018b3ffa362835ac5cfb13c576bda19d51
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_253e5f6c18184b52037a654371699a8a6ce91c944826d64e86b1bdefbf979bf4
-    Latest Commit (86 bytes):
-      a579da7ffcf1f911592f786ac767f5199d6c59b9890d4990561f4e024afdc165
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_284f9292018e14d68e4f7b60edd1dbbe1e835e962f7f5e14da1fbd636890a91c
-    Latest Commit (118 bytes):
-      568e6a5197f51be1af0304c974849ee95f73f47f413378df80645453580b047a
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:24:46+01
-
-* ostree/container/blob/sha256_3A_29cd45565a5bdc59ed4c75545999ffd9ea65551d402f383f0ef5ceeebde3cd54
-    Latest Commit (86 bytes):
-      0466eb19720c1eafa396420fd462b73032582ecdaed81e514e920ea710a85df8
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_2e2b6f8600d2853d2e7ef8dc27c056051bcc70450d0bfc1a41547129aa7de70c
-    Latest Commit (86 bytes):
-      300a0c229f68f57038baac6930d2028bb41b2cdf4f294f926ad79bd7a71bed27
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_2ec333bbfe22f1842b1ddf8594039d19d47ac40b2aa6c581f56ec7c2bcbe73a8
-    Latest Commit (86 bytes):
-      303d869d06171e3b241e419211e1c34b3d0ef5dcdf81e17b4b6a54ad19fe7251
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_356559c8327a50599218df5e2f937d87d847c85fb279921beb2a6326bd8b27df
-    Latest Commit (86 bytes):
-      03b2220cdec80fe67a0c4bdc8baee63bdeb1c53f362e6c95abdf15a6de2d3459
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_3a29477447e8ade1cc54fdc25c50d8318cda4d2c5bbfb793dedb9caddcb5c898
-    Latest Commit (86 bytes):
-      2876dc5a4b716062258879e3ad81d0621a6cb4a4152d098e3fcbfb3742c1482a
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_42caf0f2065346ec49f9c84a3e4813a628cc9c6261be4dea3647e80ce4a1f43f
-    Latest Commit (118 bytes):
-      331c6391508633d23936a01e7e805c05c7328e0923e18bd15f96f1384183f0c4
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:49+01
-
-* ostree/container/blob/sha256_3A_47bbeda4fc39e9155964700b57ebb97a8aa5be7512f3f3ae0c93fb972eb6a6cc
-    Latest Commit (86 bytes):
-      fc85ff11cf991114a03986e1fa39a326d758715bb475c0ec9cd3e847b5c6ffb7
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_47f62ae2a568faa28a0ce46e368cdc801763823fe0b0e091898d30d55efcff80
-    Latest Commit (18.6 kB):
-      d5300817582d40e12023d82aaae126fc3c6fd3d8b5cce707fbd08f88c71bccc3
-    Version (ostree.commit.version): 9.20250429.0
-    Timestamp (ostree.commit.timestamp): 2025-04-30T00:58:04+01
-
-* ostree/container/blob/sha256_3A_492479b62c9091d5b30051fb067b79b85469bc9deee5551b1aa0e265984fcc47
-    Latest Commit (86 bytes):
-      3d26b64156daf96f1596097d926e2d47b02e95835ab05c7927f53dce0a3102c7
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_4bd911a69b60b477851460cf90bb32570eb84c438ec2ef2fedef10440269e11d
-    Latest Commit (86 bytes):
-      4e8a246988c81b199a083ec65761a442a20c4b4d9eb376c9c52247a80c1ed6bd
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_4e047fc78685ee769aec04ecc44c93032279314a26a21f23d4f44afecfa9dbe4
-    Latest Commit (86 bytes):
-      a9939d1d3a24583eee97f1ac361e711f79053157f7a785723753ea50a7fdd749
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_52d42db1a576a0b5af5c189374fa02c3aa2883a5f536ceac916e2ab26e2aaef3
-    Latest Commit (86 bytes):
-      6e7d8fa9669d52f8fb79ba7d31d2b30392e4474926e5b94c5f412b9b7d4113b6
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_58e306e395e5a89a998d79163be282d2731d6346db987b9c58cc1d1c7bf02a56
-    Latest Commit (118 bytes):
-      fd3c769b3ade99ddef1b0e45bc3d04ff038fcea6f45a38bb8636cbc2137181ee
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:24:49+01
-
-* ostree/container/blob/sha256_3A_5bbd225f3b702f3152503de343610f1dbb503ee0b724ff51e4275b35e002033a
-    Latest Commit (86 bytes):
-      b3d892b22c3a17ea8cc649683ebceeea669e6b90f68aa305bcd2e0b392ab2df9
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_5e070877bf43435f0fa0ba18e54900a60f79dd7d39b2b5f3a621354a1c3e3eb6
-    Latest Commit (86 bytes):
-      ce53ab657fed3d8f88744aa53765a908f608cb1925c83cc2b3fe995c4a4263d5
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_624413d50b1b963ddce0a286b2b69716329c9a3a36f6ccf1943230bbc1eda467
-    Latest Commit (118 bytes):
-      83d84edebe47e4ea41d3c46f26883414727a0ad4cfaeda6b85c0f4ff35293e40
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:24:48+01
-
-* ostree/container/blob/sha256_3A_62edc61188eeec795e5356e56803012ebd42ced94e144c0278fbcb67faeeee37
-    Latest Commit (86 bytes):
-      9a1f4d32aa52f586b517c28e8b4579dba3348205639259416e1a4f2390aa9b41
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_694b44a64d0af7aba1b444bbda8664680fe02e3ba693e91d5df05359cf598b0b
-    Latest Commit (86 bytes):
-      a0c7fbe11d8e8b95d301a59a8fdadde1a94f5d84a72f9e85bffdf2574d510205
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_6eced2568a921dcaa1ded47f2eecc410bbfea0207f93d354f3c5aabb4ab34ea2
-    Latest Commit (86 bytes):
-      c4f6ff540074a24bb5b33afddd7aa2ad378252d5d458c42df51590a433dd2cd2
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_6fd45085cb450c96c0f0f8b1890ea065be698154546223f6d4284d222680bd4a
-    Latest Commit (86 bytes):
-      5890ad5115dc89d156ef84c9cfb79f7ddfc3ddae1172c41ed8596d73287cb626
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_732e0147fb211bb8e88e12380b3a6573700f3ca79cce9adb6159e810686da4f0
-    Latest Commit (118 bytes):
-      4911a207d2167fd0762822a672447373e1eb6f84cad3f367389584cc2d658d02
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:45+01
-
-* ostree/container/blob/sha256_3A_7e0b03eff7ecd30c002d21522d952ecf7d6f098a6496339381aa746e59beca11
-    Latest Commit (86 bytes):
-      1e8f08b43ad44c0287affc149c11d2c5c0fe4b13044343f63a9bfddf282fcdaa
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_7e936b6df2faaba3119c05585b3bfb654baf0dcd4e378452e2ab437f173a5459
-    Latest Commit (118 bytes):
-      b17b20c8dd776f0f2297b3d896c44575d85cc3ac53f2b04325cfcd7504535b27
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:25:20+01
-
-* ostree/container/blob/sha256_3A_846d8c9ce4341771be2cc02318cc2ba24248864eceae7225bb296eef206ccd30
-    Latest Commit (86 bytes):
-      30b02c3a3fcac5317f007228b71306c833b4923e6f9f93e71ac3d6d2e8a48e77
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_8598fb22bc46af86c3a5bdf4e6f35684cc82a07c7e6c16c9a7f77f0c71b1abaf
-    Latest Commit (86 bytes):
-      750eb6777a1fea6c1786020552e198d33d635798abc466eaf9d7726f9dbdad44
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_880c478179aaabda95c2a07295c79dfe421daa3f6e38c9d2089bc3226ddf4272
-    Latest Commit (86 bytes):
-      9e59d9b2d3bd17d10ff515d31ad8cf4196d3369a75b9a247edc24d22bb7394a8
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_8bfc0e089ba960376546754faa80b7c7d704f68302bd5830ec5d5f5c46014047
-    Latest Commit (86 bytes):
-      ba43193ca3bb1751152107ac5827602ce8ebd17c663bf1d4a971f515974c412d
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_8dd992c765f031f50fb44299ddbbdcb00826f72128adde30e039b205c55d420f
-    Latest Commit (86 bytes):
-      2ecc7c7f048d022b295388dfeebcced7a8c6e444b21c1af61477d3a684a7ea71
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_902c65b86464852a3a3f79c9a0fcefc976669ed58296d182d9fe187e2a612627
-    Latest Commit (86 bytes):
-      c039da2ed6bf5697fc2bad236ec9fcb29a3fd151294e50b9f93988edabb90422
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_94c17a2237b13738ed26606b79166856a661ddb4898b20a3786c6eba15e78c45
-    Latest Commit (86 bytes):
-      6f79bbb26e799c04c2753c1d3576af92ab28328b3687e9cf09292f2042186d38
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_9be42f263b233f8c75e87b053950b402fce53558746eff267957fac5b7f8d845
-    Latest Commit (118 bytes):
-      e71c328502b26ec8e91ddc368673551ab8315cb664ce808963e1cb8ef2c9f7a9
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:21:21+01
-
-* ostree/container/blob/sha256_3A_9c884c682dc135b4a211c5488ff10fbe7258c0ab6e18c1331ac4f30a6e72179d
-    Latest Commit (86 bytes):
-      56b90ff858052e32fff092ba9e6ee5aed09340c65167d65c5eff93f79b7bb9c9
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_9f86bf49766dafc612d4cbfc285004ba3615d7567551362586fa16663331e280
-    Latest Commit (86 bytes):
-      00394292486c68f4050b870be73cea416ec0cfc21b51dfac120d723862bdd3bb
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_a36bc02c82c5eb0d45f409ee009ad63f849cdefbf5e1c4be6003b77fdff393c5
-    Latest Commit (118 bytes):
-      bb37c8a6fdc14a2abe3961325e73fe3df89579c72d5e41d84e1981e85190475e
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:24:50+01
-
-* ostree/container/blob/sha256_3A_a5f4b0fa0ba76d0268d5722a1e5370221ff0d2fafd59b4a36f4e9a2cca60c6b1
-    Latest Commit (86 bytes):
-      b5d1aa221fc511f4428127f424fbd959748d889fb29a7f831a15648841dacb6b
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_ab3994c50f3892ec655ece8b3a502d7b4e983b598d06803c1582fd8dafb1e79c
-    Latest Commit (86 bytes):
-      db8a04e4c197378ba67af1e022d6d36e7c12b884339a1925555a93d81d18facb
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_ad312c5c40ccd18a3c639cc139211f3c4284e568b69b2e748027cee057986fe0
-    Latest Commit (86 bytes):
-      6109d33e99f48e9b90cdf8ad037b8e5d20ef899697cfd3eb492cf78800aed498
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_af52e3360db3a6c6cefa705ba889fd355135af8ccc86bdc06aabef328f2b279e
-    Latest Commit (86 bytes):
-      9bc164967969396b581d4bb7cfc434d400b5bd1a997550b1a406f7fdba87b3c1
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_afe14d1785245750d24272a99336c68f42cba1d297891faf7cbaa6052705f000
-    Latest Commit (86 bytes):
-      bc53fe2fe3b4bc92b698620829043d6df99d41f821e7a5ab65339011e489c812
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_b0b79e518fe0f3abf125916bc0ee89872844419270597f327d12238df9398dca
-    Latest Commit (118 bytes):
-      f0bcfd470033a8fd70bacd6b9e4de81147d883ca929f542fbd9503c809ea7115
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:48+01
-
-* ostree/container/blob/sha256_3A_b72788d3bc178ac86469cde4098af293bbf3cb5919575fbec6f06621408cc90d
-    Latest Commit (86 bytes):
-      9c3d92b9a07da6899570e3fccc72fb86619f03375bd7a58428382cb1c9c22d7f
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_b8231dc71e6a7cc1e01b42b306be5885ba9d44f86f8818fdef0c4ad74234fffe
-    Latest Commit (86 bytes):
-      bb5da1f3621299bfc38de3dcedc78fb5e65ce04675ae89208a1e76695722d1e9
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_bd9ddc54bea929a22b334e73e026d4136e5b73f5cc29942896c72e4ece69b13d
-    Latest Commit (118 bytes):
-      a4b3f2bbc8aba12c549c842fd052a9784da8150b3a859c78c45812bf7c9a0c72
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:43+01
-
-* ostree/container/blob/sha256_3A_bdd445e15c5c99bc332d1a55ea8a76c4a91fcde4656f4c2840de9394e2e036ab
-    Latest Commit (86 bytes):
-      aa77fbb1254ef8e5dd99920701dc14be7aed6a183e83359259dcb7e8f8015a58
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_c80444e8da1e8e4b2d9c965d071b7033f7a1a597bc3a0e67d14b20c75acbbef9
-    Latest Commit (86 bytes):
-      ef41ac21864f3fe05692db99021aaf716162b6f0e0533183d9ca61ab712e3834
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_cf9c329a7bff9266f822b7c9503664ba41a7d8cc6d432ee1f700c39428bd5c82
-    Latest Commit (86 bytes):
-      484d01762e1628aa0fd3ad762bac9651be5fdc533a06f648c184e322fe4ab781
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_d095d2380eacc65c26aecb6616b6511c30a8370d1f7bcec5a31045312e724e09
-    Latest Commit (86 bytes):
-      36a9155b2f5435de11deb0939a30e012835440ef854e5b2f2a2612661ad32f80
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_d0ee2006506f1d52dfe89d12f7e08609510a87cbd1ac4b9a63ad5a77e4d173e6
-    Latest Commit (86 bytes):
-      eca620f4d4bbe4a4581b1ee4896fb4ba9a61c0c8aa2eb16d6ecdc8085b5935c4
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_d26ef76e86766469a49d2cb0b432631362bfc92d64b1baf6b21021e06dc77b30
-    Latest Commit (118 bytes):
-      1936d607e88355a8952d0bd6b6a2cab13937c24206ba7a32b13f5234cdc0bec2
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:42+01
-
-* ostree/container/blob/sha256_3A_d2c3ed7371e3dd88071e049cd25acd206c32452c56c68f19a844f7b3e9cdb199
-    Latest Commit (118 bytes):
-      19ca577ec99ed5486ed07fafe5350ddf05da7e5f942114fc3e0947760d636f40
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:46+01
-
-* ostree/container/blob/sha256_3A_d3019f07d56012374c993b52ab86ca375583f18df64db9de3bdf1124fa1b78e2
-    Latest Commit (86 bytes):
-      20d27fec2c8b505da8474b5a953eb5754f3fffa8173e9fee8a52e81d83bbe44d
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_d3de8bd41786ca4bbee55903265e03672d22c09687c4aa542f1b5292b553457f
-    Latest Commit (118 bytes):
-      9d39bfd17184ee2ae77e704221822cc53b44c380c824ac50b9290703cb9a6395
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:24:51+01
-
-* ostree/container/blob/sha256_3A_da954960b83f1bac52d8966a25f1858b8502519b77e69f2d8936fdee8c862868
-    Latest Commit (86 bytes):
-      e29d144a5a5be3b2124de3019001581ca77fe32bfabf7f624fe5ae7be6a18a92
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_dcfc1a89e116c144c1181c814422efd92d2bb809a02749fcda1409e775cb857e
-    Latest Commit (86 bytes):
-      e8fcde276d23faf557c63e2449f2db21efda2733d747e4f7b3b956cd3601e62e
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_de79382b283be6736a610f81c6fbbf463e481da664a0af371d857ce1037f769d
-    Latest Commit (86 bytes):
-      4b1248f8f3ba20e41639edf0aa3ec5b4040086652af060543e7df842d631b9a6
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_e21aed3024e30a6b416efd94e5587b51d99460ca1fd88358e211497e4858cc65
-    Latest Commit (118 bytes):
-      f98d556e0a1d415b6a3de02f63f36be5f1e959ec2b8836be913078bd51d111cd
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:44+01
-
-* ostree/container/blob/sha256_3A_e718848b472aa2858700b4655d4a79c77b8d9d5dff0140021b037ae191e1ed1c
-    Latest Commit (86 bytes):
-      a9476d151276b233ad0d20d38cbb5864273606f71ac74eacdc74cd6a7717a89f
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_e834242c12ffa8b2e8960dc7856ee13cd23a23dc7e534e0229a8175be0e8e8b8
-    Latest Commit (118 bytes):
-      9354ce9aae86e7648e7dc3a212a8a52c81e2997df67c336ef26953f5483a37dc
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:50+01
-
-* ostree/container/blob/sha256_3A_ea63be1073b5fa3c5f6d2c39576b85199953c22b7b663ac1ab6f7ab9e16e18ef
-    Latest Commit (86 bytes):
-      34fb0011ee1c5ecb54d3fc59ad08bc7fcb3cbf2ebe6c666e974bc80c9b2c6fdd
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_ebdfea18c39b03ff1b726b83b4214fe8d0a8dde5ec47454f0ae0b07561217b62
-    Latest Commit (86 bytes):
-      34c161a65ce234b913d817f111af5e11a2c6e94f3c3cf48ec3f53e219135e2db
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_ec33ac690926410a934a79ad3d24c067fe37f0c35becf234ff0482156ba76587
-    Latest Commit (118 bytes):
-      45326d49f09826887455fdeadbdad015ebc0dfc8260292e9651116d7a55b870a
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:17:47+01
-
-* ostree/container/blob/sha256_3A_ecaa57980e2d981111859a4557a5f77e305ab0d6d3bf424952fa9eb545903ccb
-    Latest Commit (86 bytes):
-      408e968cbaaf11360775c2268b4f36ffd84e20105c59012055c51a432ee3e532
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_f4e337b33971149c8fbe688c3daf3adc4e06a982e46d627fa1963c45833109cd
-    Latest Commit (118 bytes):
-      bb5dedb893106d622e0fb96cecbabf380c5f6ef772cf05dea97b87db69860d6e
-    Timestamp (ostree.commit.timestamp): 2025-06-13T19:16:54+01
-
-* ostree/container/blob/sha256_3A_f51db0f8833d54173863a607dcbec4bec8357536b5c74bfec0dfcbc7dee61111
-    Latest Commit (86 bytes):
-      64ff451ec8b918a0733289b722206d6413a7e651433b5cb58710a5b9462de7ad
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_f543bc96340b6fdfac50e20c2b885b745055fa15fb155fb49dad4992eb4502a6
-    Latest Commit (86 bytes):
-      b1df7b7a22224539de2a43ed544258a7998df1ee7ae95800aeb3e64dfd4078ce
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_fa10023c68bb6d896ad33ddc803ee11854c2ee3cbfc86fa1fb9c091c0d331edb
-    Latest Commit (86 bytes):
-      b8d171098c2c90d5cc5ed3f78bfaa9040ceddd767dd3c732a0b71589e23f94aa
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_fa3050cba1c873174c8e02978dbbb1cee83de68cc352fd0ea9be806e29c1a945
-    Latest Commit (86 bytes):
-      fa5f55858dad32225b5c4720d5e36bd3d17aee82f2527c4eb08884718495bb3c
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_fc13c0de7a3c9629ac5a07c855387354e6d6aa01dda7b3c0520c17a38642c22d
-    Latest Commit (86 bytes):
-      8d4efb94a3db9dd1567b018fdf64118730290eee3c0e6f9adde009ac7d3965b8
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/blob/sha256_3A_ff89bfb07d324df88d1ade9e2899b56a3b3db61fefc2c91edf04e6107e67e13e
-    Latest Commit (86 bytes):
-      f629c131114261be20c24daa24223eee1ec8b57af7891e33bd6ca73996c2accd
-    Timestamp (ostree.commit.timestamp): 1970-01-01T01:00:00+01
-
-* ostree/container/image/docker_3A__2F__2F_quay_2E_io/rhn__support__arolivei/microshift-4_2E_18-bootc-embeeded_3A_v2
-    Latest Commit (34.0 kB):
-      1ee86936c0463da392589e3f491be3b99a5d4c6f158d17e845261f048196c5cd
-    Timestamp (ostree.commit.timestamp): 2025-06-13T18:59:53+01
-
-Repository Mode (ostree.summary.mode): bare
-Last-Modified (ostree.summary.last-modified): 2025-06-13T19:50:26+01
-Has Tombstone Commits (ostree.summary.tombstone-commits): No
-ostree.summary.indexed-deltas: true
-[root@rhel94-local repo]# 
-~~~
-
-
-Identify the final image commit. From our output, this is the commit associated with your microshift...:v2 image:
-1ee86936c0463da392589e3f491be3b99a5d4c6f158d17e845261f048196c5cd
-
-Create a new ref pointing to that single commit. Let's create a new, clean ref called microshift/v2-stable.
-~~~
-# ostree --repo=/root/repo refs 1ee86936c0463da392589e3f491be3b99a5d4c6f158d17e845261f048196c5cd --create=microshift/v2-stable
-~~~
-Verify the result. Now if you list your refs, you will see your new, clean ref alongside all the internal ones.
-
-~~~
-# ostree --repo=/root/repo refs
-~~~
-
-
-tar.gz it and transfer to the target bootc system to get updated:
-~~~
-[root@rhel94-local ~]# tar zcvf repo.tar.gz repo/
-repo/
-repo/config
-repo/tmp/
-repo/tmp/cache/
-repo/extensions/
-repo/state/
-repo/refs/
-repo/refs/heads/
-repo/refs/heads/ostree/
-repo/refs/heads/ostree/container/
-repo/refs/heads/ostree/container/blob/
-repo/refs/heads/ostree/container/blob/sha256_3A_13dd1760bac04dd71abfc3984673ba4db8330a00d74a16d1681a643f7785957b
-repo/refs/heads/ostree/container/blob/sha256_3A_18ab149f0f36fd9d5132410fa67e65e77b5b0f9b94e234b5d17af5bb0506e371
-repo/refs/heads/ostree/container/blob/sha256_3A_242bd4b7d70ceb6c7890537ad517d2e9ad05fdab4e4279e3c8ed928bc1b56cdd
+Writing manifest to image destination
+[root@rhel94-local ~]# 
+[root@rhel94-local ~]# podman save -o microshift-4.18-bootc-embeeded-v2.tar localhost/microshift-4.18-bootc-embeeded:v2
+Copying blob 520d77fe5a18 done   | 
+Copying blob 520d77fe5a18 done   | 
+Copying blob 520d77fe5a18 done   | 
+Copying blob 520d77fe5a18 done   | 
+Copying blob 7e2558927ccf done   | 
 (..)
-repo/objects/ff/ef63f5caee06e913877fd0bfadc8ca23d00d81b2881853f0c33731a20f576b.dirtree
-repo/objects/ff/695360b1bff7695ead630a0307adfd9865eb1ea887bd8c5bfde7f6b4a07240.dirtree
-repo/objects/ff/351d2e6c1a759264f5cce12db156af197fbe5c112dbb9c8d2346e39dc6886e.dirtree
-repo/.lock
-repo/summary
+Copying blob 459fa026fdf6 done   | 
+Copying blob 9f97221ac7c5 done   | 
+Copying config 5f3b9b9fdb done   | 
+Writing manifest to image destination
+~~~
 
-##
-[root@localhost ~]# mkdir -p /var/tmp/ostree-updates
-[root@localhost ~]# chown redhat: /var/tmp/ostree-updates
-[root@localhost ~]# 
+##### Installing tar-diff and tar-patch from source (to raise a issue to the repo): 
 
-##
+https://github.com/containers/tar-diff.git is not a very active repo, updated 5 years ago. And it does contains the binaries, so, you need to build. 
+To build it, you need to have GoLang 1.22. So, you are running on RHEL 9.4+ (maybe even for 9.2), you must download GoLang binaries directly instead of using our rpms.  
 
-[root@rhel94-local ~]# scp repo.tar.gz redhat@192.168.111.198:/var/tmp/ostree-updates
-redhat@192.168.111.198's password: 
-repo.tar.gz                                                                                                                                100% 4069MB 543.7MB/s   00:07    
+~~~
+[root@rhel94-local tar-diff]# wget https://go.dev/dl/go1.22.12.linux-amd64.tar.gz 
+--2025-06-20 12:33:41--  https://go.dev/dl/go1.22.12.linux-amd64.tar.gz
+Resolving go.dev (go.dev)... 216.239.32.21, 216.239.36.21, 216.239.34.21, ...
+Connecting to go.dev (go.dev)|216.239.32.21|:443... connected.
+HTTP request sent, awaiting response... 302 Found
+Location: https://dl.google.com/go/go1.22.12.linux-amd64.tar.gz [following]
+--2025-06-20 12:33:42--  https://dl.google.com/go/go1.22.12.linux-amd64.tar.gz
+Resolving dl.google.com (dl.google.com)... 172.217.20.206, 2a00:1450:4007:810::200e
+Connecting to dl.google.com (dl.google.com)|172.217.20.206|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 68995422 (66M) [application/x-gzip]
+Saving to: ‘go1.22.12.linux-amd64.tar.gz’
+
+go1.22.12.linux-amd64.tar.gz                         100%[=====================================================================================================================>]  65.80M  25.5MB/s    in 2.6s    
+
+2025-06-20 12:33:45 (25.5 MB/s) - ‘go1.22.12.linux-amd64.tar.gz’ saved [68995422/68995422]
+
+[root@rhel94-local tar-diff]# tar -C /usr/local -xzf go1.22.*.linux-amd64.tar.gz
+[root@rhel94-local tar-diff]# export PATH=$PATH:/usr/local/go/bin
+
+[root@rhel94-local tar-diff]# go version
+go version go1.22.12 linux/amd64
+~~~
+
+
+~~~
+[root@rhel94-local tar-diff]# ll
+total 67440
+drwxr-xr-x. 4 root root       39 Jun 20 12:31 cmd
+-rw-r--r--. 1 root root      193 Jun 20 12:31 CODE-OF-CONDUCT.md
+-rw-r--r--. 1 root root     1973 Jun 20 12:31 file-format.md
+-rw-r--r--. 1 root root 68995422 Feb  4 16:41 go1.22.12.linux-amd64.tar.gz
+-rw-r--r--. 1 root root      138 Jun 20 12:31 go.mod
+-rw-r--r--. 1 root root    21809 Jun 20 12:31 go.sum
+-rw-r--r--. 1 root root    10728 Jun 20 12:31 LICENSE
+-rw-r--r--. 1 root root     2184 Jun 20 12:31 Makefile
+drwxr-xr-x. 5 root root       53 Jun 20 12:31 pkg
+-rw-r--r--. 1 root root     1419 Jun 20 12:31 README.md
+-rw-r--r--. 1 root root      241 Jun 20 12:31 SECURITY.md
+drwxr-xr-x. 2 root root       21 Jun 20 12:31 tests
+
+[root@rhel94-local tar-diff]# make tar-diff
+GO111MODULE="on" go build  ./cmd/tar-diff
+[root@rhel94-local tar-diff]# make build
+GO111MODULE="on" go build  ./...
+[root@rhel94-local tar-diff]# make install
+GO111MODULE="on" go build  ./cmd/tar-patch
+install -d -m 755 /usr/bin
+install -m 755 tar-diff /usr/bin/tar-diff
+install -m 755 tar-patch /usr/bin/tar-patch
+~~~
+
+##### Generate Delta Using Tar-Diff
+
+1. Stage Your Images: Ensure both base-image.tar and updated-image.tar are present.
+2. Generate the Delta: Run the tar-diff command.
+
+~~~
+tar-diff base-image.tar updated-image.tar delta_update.tar
+~~~
+
+As you can see, v1 image have 4761 Mbytes, v2 4761 Mbytes and the **delta only 207 Mbytes**. This is pretty much aligned to the outputs of `dnf updates` when building v2 image:  
+~~~ 
+[root@rhel94-local ~]# ls -la microshift-*tar
+-rw-r--r--. 1 root root 4596023296 Jun 20 11:55 microshift-4.18-bootc-embeeded-v1.tar
+-rw-r--r--. 1 root root 4991577088 Jun 20 12:00 microshift-4.18-bootc-embeeded-v2.tar
+[root@rhel94-local ~]# #tar-diff base-image.tar updated-image.tar delta_update.tar
+[root@rhel94-local ~]# tar-diff microshift-4.18-bootc-embeeded-v1.tar microshift-4.18-bootc-embeeded-v2.tar delta_microshift-4.18-bootc-embeeded-v2.tar
+[root@rhel94-local ~]# echo $?
+0
+[root@rhel94-local ~]# du -sm *microshift-4.18-bootc-embeeded-v*tar
+207	delta_microshift-4.18-bootc-embeeded-v2.tar
+4384	microshift-4.18-bootc-embeeded-v1.tar
+4761	microshift-4.18-bootc-embeeded-v2.tar
 [root@rhel94-local ~]# 
 ~~~
 
-Check the status of target system to get updated: 
-~~~
-[root@rhel94-local ~]# ssh redhat@192.168.111.198
-redhat@192.168.111.198's password: 
-Boot Status is GREEN - Health Check SUCCESS
-Web console: https://localhost:9090/
+3. Transfer the Delta: Send the resulting delta_update.tar file to your Local Registry & Patching Host.
 
-Last login: Fri Jun 13 18:55:34 2025 from 192.168.111.152
-[redhat@localhost ~]$ sudo -i
+##### Reconstruct v2 from the delta On the Local Registry
+
+This server acts as the central hub for updates. It will receive the delta, reconstruct the new image, and publish it to its own registry service.
+
+**Requirements**:
+- `base-image.tar`: The original image archive.
+- `delta_update.tar`: The delta file received from the build system.
+- `tar-patch` binary: The utility to apply the patch (see installation steps above).
+- An OCI container engine: Typically podman on a RHEL system.
+- A running OCI registry service: The registry to which the new image will be pushed.
+
+**Steps:**
+
+1. Prepare Host: Ensure all requirements are met. The delta_update.tar has been copied to the server, and base-image.tar is available.
+2. Extract the base image:
+   ~~~
+   # mkdir base-image
+   # tar -xf base-image.tar -C base-image
+   ~~~
+   Sample output: 
+   ~~~
+   [root@rhel94-local deltas]# mkdir base-image
+   [root@rhel94-local deltas]# tar -xf microshift-4.18-bootc-embeeded-v1.tar -C base-image
+   [root@rhel94-local deltas]# du -sm base-image/
+   4384	base-image/
+   ~~~
+3. Reconstruct the Image Archive: Run `tar-patch` to create the full `updated-image.tar`.
+   ~~~
+   tar-patch base-image.tar delta_update.tar reconstructed_image.tar 
+   ~~~
+   
+   In this lab, we do have all images available, so we can compare size and hash: 
+   ~~~
+   [root@rhel94-local deltas]# tar-patch delta_microshift-4.18-bootc-embeeded-v2.tar base-image/ reconstructed_microshift-4.18-bootc-embeeded-v2.tar
+   [root@rhel94-local deltas]# echo $?
+   0
+   [root@rhel94-local deltas]# du -sm *
+   4384	base-image
+   207	delta_microshift-4.18-bootc-embeeded-v2.tar
+   4384	microshift-4.18-bootc-embeeded-v1.tar
+   4761	microshift-4.18-bootc-embeeded-v2.tar
+   4761	reconstructed_microshift-4.18-bootc-embeeded-v2.tar
+   [root@rhel94-local deltas]# sha
+   sha1hmac    sha1sum     sha224hmac  sha224sum   sha256hmac  sha256sum   sha384hmac  sha384sum   sha512hmac  sha512sum   shade-jar   shasum      
+   [root@rhel94-local deltas]# sha256sum *tar
+   d0443b08557644351f39b7040affacfdbab718afbe128097237014fac9ebbfa1  delta_microshift-4.18-bootc-embeeded-v2.tar
+   d9af229feca6f2051494a9f5ff3fd1318eb95e22c044b80fe811b35b85a3580a  microshift-4.18-bootc-embeeded-v1.tar
+   d5e4bc60e50772eb64d393bc9f569e2746a461dd093d12618a2d9be1e099785f  microshift-4.18-bootc-embeeded-v2.tar
+   d5e4bc60e50772eb64d393bc9f569e2746a461dd093d12618a2d9be1e099785f  reconstructed_microshift-4.18-bootc-embeeded-v2.tar
+   [root@rhel94-local deltas]# 
+   ~~~
+4. Load the generated image to a local OCI registry: 
+   ~~~
+   podman load -i reconstructed_microshift-4.18-bootc-embeeded-v2.tar
+   podman tag microshift-4.18-bootc-embeeded:v2 localhost:5000/microshift-4.18-bootc-embeeded:v2
+   podman push localhost:5000/microshift-4.18-bootc-embeeded:v2
+   ~~~
+
+##### Patching Host
+In this context, our far-edge system must be installed from the ISO, as for remote locations we distribute the installation medias (USB, DVD, etc) due restricted internet connections. Then, as our far-edge node does have access to a local registry within the same LAN, the first update will be using `bootc switch`. 
+
+Check current status of the system: 
+~~~
+[redhat@localhost patch]$ cat /etc/redhat-release 
+Red Hat Enterprise Linux release 9.4 (Plow)
+[redhat@localhost patch]$ uname -a
+Linux microshift-4.18-bootc-isolated-v1 5.14.0-427.65.1.el9_4.x86_64 #1 SMP PREEMPT_DYNAMIC Fri Apr 11 15:52:56 EDT 2025 x86_64 x86_64 x86_64 GNU/Linux
+[redhat@localhost patch]$ microshift version
+MicroShift Version: 4.18.11
+Base OCP Version: 4.18.11
+[redhat@localhost patch]$ oc get pods -A
+NAMESPACE                  NAME                                      READY   STATUS    RESTARTS        AGE
+dotnet-memory-leak-app     dotnet-memory-leak-app-f54754f4c-kgwsb    1/1     Running   0               2d3h
+example-apps-wordpress     wordpress-ff94c8dcf-8n885                 1/1     Running   0               2d18h
+example-apps-wordpress     wordpress-mysql-84dd895d65-vnff2          1/1     Running   0               2d18h
+kube-system                csi-snapshot-controller-85ccb45d4-9z2rd   1/1     Running   0               2d18h
+openshift-dns              dns-default-dp5dt                         2/2     Running   0               2d18h
+openshift-dns              node-resolver-wzgcg                       1/1     Running   0               2d18h
+openshift-ingress          router-default-6ddbc959b9-dvs7q           1/1     Running   0               2d18h
+openshift-ovn-kubernetes   ovnkube-master-4zld7                      4/4     Running   1 (2d18h ago)   2d18h
+openshift-ovn-kubernetes   ovnkube-node-xgxtp                        1/1     Running   1 (2d18h ago)   2d18h
+openshift-service-ca       service-ca-7b964bd597-hsh6p               1/1     Running   2 (2d12h ago)   2d18h
+openshift-storage          lvms-operator-d6f9c9d4-grwdv              1/1     Running   0               2d18h
+openshift-storage          vg-manager-24ptl                          1/1     Running   7 (42h ago)     2d18h
+[redhat@localhost patch]$ 
+[redhat@localhost patch]$ cat /etc/redhat-release 
+Red Hat Enterprise Linux release 9.4 (Plow)
+[redhat@localhost patch]$ sudo bootc status
 [sudo] password for redhat: 
-[root@localhost ~]# journalctl -f -u rpm-ostreed.service
-Jun 13 18:54:20 localhost.localdomain rpm-ostree[1296]: Reading config file '/etc/rpm-ostreed.conf'
-Jun 13 18:54:20 localhost.localdomain systemd[1]: Started rpm-ostree System Management Daemon.
-Jun 13 18:54:20 localhost.localdomain rpm-ostree[1296]: In idle state; will auto-exit in 64 seconds
-Jun 13 18:54:20 localhost.localdomain rpm-ostree[1296]: client(id:cli dbus:1.12 unit:microshift.service uid:0) added; new total=1
-Jun 13 18:54:20 localhost.localdomain rpm-ostree[1296]: client(id:cli dbus:1.12 unit:microshift.service uid:0) vanished; remaining=0
-Jun 13 18:54:20 localhost.localdomain rpm-ostree[1296]: In idle state; will auto-exit in 62 seconds
-Jun 13 18:54:20 localhost.localdomain rpm-ostree[1296]: client(id:cli dbus:1.13 unit:microshift.service uid:0) added; new total=1
-Jun 13 18:54:20 localhost.localdomain rpm-ostree[1296]: client(id:cli dbus:1.13 unit:microshift.service uid:0) vanished; remaining=0
-Jun 13 18:54:20 localhost.localdomain rpm-ostree[1296]: In idle state; will auto-exit in 64 seconds
-Jun 13 18:55:24 localhost.localdomain systemd[1]: rpm-ostreed.service: Deactivated successfully.
-q^C
-[root@localhost ~]# cd /var/tmp/ostree-updates/
-[root@localhost ostree-updates]# tar xf repo.tar.gz 
-[root@localhost ostree-updates]# rpm-ostree upgrade --check
-error: Creating importer: Failed to invoke skopeo proxy method OpenImage: remote error: pinging container registry localhost: Get "https://localhost/v2/": dial tcp [::1]:443: connect: connection refused
-[root@localhost ostree-updates]# rpm-ostree status
+apiVersion: org.containers.bootc/v1alpha1
+kind: BootcHost
+metadata:
+  name: host
+spec:
+  image:
+    image: localhost/microshift-4.18-bootc-embedded
+    transport: registry
+  bootOrder: default
+status:
+  staged: null
+  booted:
+    image:
+      image:
+        image: localhost/microshift-4.18-bootc-embedded
+        transport: registry
+      version: 9.20250429.0
+      timestamp: null
+      imageDigest: sha256:3fca0adf6e1233c9fdfd4f2dcc52474386c65c657aece047d6ff95d4bc951cac
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    store: ostreeContainer
+    ostree:
+      checksum: c44783039070260d412378f2f5e5650f8ff3187b32e5e156f8778afaad526dab
+      deploySerial: 0
+  rollback: null
+  rollbackQueued: false
+  type: bootcHost
+[redhat@localhost patch]$ sudo rpm-ostree status
 State: idle
 Deployments:
 ● ostree-unverified-registry:localhost/microshift-4.18-bootc-embedded
-                   Digest: sha256:8b770ff5b62b73902b0fcc82dfac00312f4b84dc8c54f30482632daebc6841a3
-                  Version: 9.20250429.0 (2025-06-04T22:08:08Z)
-[root@localhost ostree-updates]# rpm-ostree status -v
+                   Digest: sha256:3fca0adf6e1233c9fdfd4f2dcc52474386c65c657aece047d6ff95d4bc951cac
+                  Version: 9.20250429.0 (2025-06-17T16:38:19Z)
+[redhat@localhost patch]$ 
+[redhat@localhost patch]$ systemctl status greenboot-status.service 
+● greenboot-status.service - greenboot MotD Generator
+     Loaded: loaded (/usr/lib/systemd/system/greenboot-status.service; enabled; preset: enabled)
+     Active: active (exited) since Tue 2025-06-17 17:24:50 UTC; 2 days ago
+    Process: 7103 ExecStart=/usr/libexec/greenboot/greenboot-status (code=exited, status=0/SUCCESS)
+   Main PID: 7103 (code=exited, status=0/SUCCESS)
+        CPU: 20ms
+
+Jun 17 17:24:50 localhost.localdomain systemd[1]: Starting greenboot MotD Generator...
+Jun 17 17:24:50 localhost.localdomain greenboot-status[7112]: Boot Status is GREEN - Health Check SUCCESS
+Jun 17 17:24:50 localhost.localdomain systemd[1]: Finished greenboot MotD Generator.
+[redhat@localhost patch]$ systemctl status greenboot-healthcheck.service 
+● greenboot-healthcheck.service - greenboot Health Checks Runner
+     Loaded: loaded (/usr/lib/systemd/system/greenboot-healthcheck.service; enabled; preset: enabled)
+     Active: active (exited) since Tue 2025-06-17 17:24:50 UTC; 2 days ago
+    Process: 745 ExecStart=/usr/libexec/greenboot/greenboot check (code=exited, status=0/SUCCESS)
+   Main PID: 745 (code=exited, status=0/SUCCESS)
+        CPU: 20.287s
+
+Jun 17 17:23:57 localhost.localdomain 40_microshift_running_check.sh[774]: Checking pod restart count in the 'openshift-ovn-kubernetes' namespace
+Jun 17 17:23:57 localhost.localdomain 40_microshift_running_check.sh[774]: Checking pod restart count in the 'openshift-service-ca' namespace
+Jun 17 17:23:57 localhost.localdomain 40_microshift_running_check.sh[774]: Checking pod restart count in the 'openshift-ingress' namespace
+Jun 17 17:23:57 localhost.localdomain 40_microshift_running_check.sh[774]: Checking pod restart count in the 'openshift-dns' namespace
+Jun 17 17:23:57 localhost.localdomain 40_microshift_running_check.sh[774]: Checking pod restart count in the 'openshift-storage' namespace
+Jun 17 17:23:57 localhost.localdomain 40_microshift_running_check.sh[774]: Checking pod restart count in the 'kube-system' namespace
+Jun 17 17:24:50 localhost.localdomain 40_microshift_running_check.sh[774]: FINISHED
+Jun 17 17:24:50 localhost.localdomain greenboot[745]: Script '40_microshift_running_check.sh' SUCCESS
+Jun 17 17:24:50 localhost.localdomain greenboot[745]: Running Wanted Health Check Scripts...
+Jun 17 17:24:50 localhost.localdomain systemd[1]: Finished greenboot Health Checks Runner.
+[redhat@localhost patch]$ 
+~~~
+
+Upgrade with `bootc switch`: 
+
+In this lab we are using a simple and insecure registry, so we need to Add a new registry entry:
+Scroll through the file and add the following block. You can add it after the [registries.insecure] or [registries.search] sections, or at the end of the file.
+
+~~~
+[[registry]]
+prefix = "192.168.111.152:5000"
+location = "192.168.111.152:5000"
+insecure = true
+~~~
+
+Then, Upgrade with `bootc switch`: 
+~~~
+[redhat@localhost patch]$ sudo bootc switch 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+layers already present: 80; layers needed: 2 (230.5 MB)
+Fetched layers: 219.81 MiB in 15 seconds (14.79 MiB/s)
+Pruned images: 1 (layers: 0, objsize: 0 bytes)
+Queued for next boot: 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+  Version: 9.20250429.0
+  Digest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+[redhat@localhost patch]$ 
+~~~
+
+Check current status of bootc and ostree. We can see here that the updated image contains `Diff: 19 upgraded, 4 added`: 
+
+~~~
+apiVersion: org.containers.bootc/v1alpha1
+kind: BootcHost
+metadata:
+  name: host
+spec:
+  image:
+    image: 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+    transport: registry
+  bootOrder: default
+status:
+  staged:
+    image:
+      image:
+        image: 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+        transport: registry
+      version: 9.20250429.0
+      timestamp: null
+      imageDigest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    store: ostreeContainer
+    ostree:
+      checksum: abf40b982c71b69c7da4cbf8ec08c9ea2ba608785a11319650d3149cea2cb1a9
+      deploySerial: 0
+  booted:
+    image:
+      image:
+        image: localhost/microshift-4.18-bootc-embedded
+        transport: registry
+      version: 9.20250429.0
+      timestamp: null
+      imageDigest: sha256:3fca0adf6e1233c9fdfd4f2dcc52474386c65c657aece047d6ff95d4bc951cac
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    store: ostreeContainer
+    ostree:
+      checksum: c44783039070260d412378f2f5e5650f8ff3187b32e5e156f8778afaad526dab
+      deploySerial: 0
+  rollback: null
+  rollbackQueued: false
+  type: bootcHost
+[redhat@localhost patch]$ 
+[redhat@localhost patch]$ sudo rpm-ostree status
 State: idle
-AutomaticUpdates: disabled
 Deployments:
-● ostree-unverified-registry:localhost/microshift-4.18-bootc-embedded (index: 0)
-                   Digest: sha256:8b770ff5b62b73902b0fcc82dfac00312f4b84dc8c54f30482632daebc6841a3
-                  Version: 9.20250429.0 (2025-06-04T22:08:08Z)
-                   Commit: 0351d3dfa326d2758d408cfc6a423b3212be02941f50e3adabe1dae01fd51a6d
-                   Staged: no
-                StateRoot: default
-[root@localhost ostree-updates]# 
+  ostree-unverified-registry:192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+                   Digest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+                  Version: 9.20250429.0 (2025-06-18T08:22:10Z)
+                     Diff: 19 upgraded, 4 added
+
+● ostree-unverified-registry:localhost/microshift-4.18-bootc-embedded
+                   Digest: sha256:3fca0adf6e1233c9fdfd4f2dcc52474386c65c657aece047d6ff95d4bc951cac
+                  Version: 9.20250429.0 (2025-06-17T16:38:19Z)
+[redhat@localhost patch]$ 
 ~~~
 
-Add the Local Repository as a Remote:
+Apply & Reboot: 
 ~~~
-# ostree remote add --no-gpg-verify offline-update file:///var/tmp/ostree-updates/repo
-~~~
-
-Inspect the repo: 
-~~~
-[root@localhost ostree-updates]# ostree --repo=/var/tmp/ostree-updates/repo refs|head
-microshift/v2-stable
-ostree/container/blob/sha256_3A_05d6802717d74e2078d81a328c6ae1988a93d8f1ceb0203146d2c676c5e320b5
-
-[root@localhost ostree-updates]# ostree --repo=/var/tmp/ostree-updates/repo show microshift/v2-stable
-commit 1ee86936c0463da392589e3f491be3b99a5d4c6f158d17e845261f048196c5cd
-ContentChecksum:  ded3a75076ca086a4eb4c62e816d83e3be21feec00aa5eb146cd9f41deb1a6ff
-Date:  2025-06-13 17:59:53 +0000
-(no subject)
+[redhat@localhost patch]$ sudo bootc upgrade --apply 
+No changes in 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2 => sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+Staged update present, not changed.
+Rebooting system
+Connection to 192.168.111.227 closed by remote host.
+Connection to 192.168.111.227 closed.
 ~~~
 
+Check the status after the upgrade: 
 ~~~
-[root@localhost ~]# ostree --repo=/var/tmp/ostree-updates/repo pull-local /sysroot/ostree/repo
-195 metadata, 31 content objects imported; 0 bytes content written                                                                                                           
-[root@localhost ~]# 
+arolivei@arolivei-thinkpadp16vgen1:~/VirtualMachines$ ssh redhat@192.168.111.227
+redhat@192.168.111.227's password: 
+Activate the web console with: systemctl enable --now cockpit.socket
+
+Last login: Wed Jun 18 06:50:07 2025 from 192.168.111.1
+[redhat@microshift-4 ~]$ uname -a 
+Linux microshift-4.18-bootc-isolated-v1 5.14.0-427.65.1.el9_4.x86_64 #1 SMP PREEMPT_DYNAMIC Fri Apr 11 15:52:56 EDT 2025 x86_64 x86_64 x86_64 GNU/Linux
+[redhat@microshift-4 ~]$ cat /etc/redhat-release 
+Red Hat Enterprise Linux release 9.4 (Plow)
+[redhat@microshift-4 ~]$ microshift version
+MicroShift Version: 4.18.11
+Base OCP Version: 4.18.11
+[redhat@microshift-4 ~]$ sudo rpm-ostree status
+[sudo] password for redhat: 
+State: idle
+Deployments:
+● ostree-unverified-registry:192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+                   Digest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+                  Version: 9.20250429.0 (2025-06-18T08:22:10Z)
+
+  ostree-unverified-registry:localhost/microshift-4.18-bootc-embedded
+                   Digest: sha256:3fca0adf6e1233c9fdfd4f2dcc52474386c65c657aece047d6ff95d4bc951cac
+                  Version: 9.20250429.0 (2025-06-17T16:38:19Z)
+[redhat@microshift-4 ~]$ sudo bootc status
+apiVersion: org.containers.bootc/v1alpha1
+kind: BootcHost
+metadata:
+  name: host
+spec:
+  image:
+    image: 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+    transport: registry
+  bootOrder: default
+status:
+  staged: null
+  booted:
+    image:
+      image:
+        image: 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+        transport: registry
+      version: 9.20250429.0
+      timestamp: null
+      imageDigest: sha256:1df6d058a1b086a0ecfd257ff743efc39010b29d4f41d1a634a4ad3e6c4430d9
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    store: ostreeContainer
+    ostree:
+      checksum: abf40b982c71b69c7da4cbf8ec08c9ea2ba608785a11319650d3149cea2cb1a9
+      deploySerial: 0
+  rollback:
+    image:
+      image:
+        image: localhost/microshift-4.18-bootc-embedded
+        transport: registry
+      version: 9.20250429.0
+      timestamp: null
+      imageDigest: sha256:3fca0adf6e1233c9fdfd4f2dcc52474386c65c657aece047d6ff95d4bc951cac
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    store: ostreeContainer
+    ostree:
+      checksum: c44783039070260d412378f2f5e5650f8ff3187b32e5e156f8778afaad526dab
+      deploySerial: 0
+  rollbackQueued: false
+  type: bootcHost
+[redhat@microshift-4 ~]$ 
 ~~~
