@@ -1,6 +1,6 @@
 AUTH_CONFIG=.quay-auth.json
 PULL_SECRET=.pull-secret.json
-IMAGE_REF="quay.io/rhn_support_arolivei/microshift-4.18-bootc:v1"
+IMAGE_REF="quay.io/rhn_support_arolivei/microshift-4.19-bootc:v1"
 cat > kickstart.ks <<EOFKS
 lang en_US.UTF-8
 keyboard us

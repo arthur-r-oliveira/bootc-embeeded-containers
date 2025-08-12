@@ -3,7 +3,7 @@ IMAGE_NAME=microshift-4.19-bootc-embeeded
 REGISTRY_URL=quay.io
 TAG=$1
 REGISTRY_IMG=rhn_support_arolivei/"${IMAGE_NAME}:${TAG}"
-BASE_IMAGE_NAME=microshift-4.18-bootc:v2
+BASE_IMAGE_NAME=microshift-4.19-bootc:v2
 
 echo "#### Building a new bootc image with MicroShift and application Container images embeeded to it"
 podman build --authfile "${PULL_SECRET}" -t "${IMAGE_NAME}:${TAG}" \

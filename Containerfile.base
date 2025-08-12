@@ -1,12 +1,12 @@
-FROM registry.redhat.io/rhel9-eus/rhel-9.4-bootc:9.4
+FROM registry.redhat.io/rhel9-eus/rhel-9.6-bootc:9.6
 #FROM registry.distributed-ci.io/rhel9/rhel-bootc:9.6-1745774951
-ARG USHIFT_VER=4.18
+ARG USHIFT_VER=4.19
 
 RUN . /etc/os-release && dnf upgrade -y --releasever="${VERSION_ID}" && \
     dnf config-manager \
         --set-enabled "rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms" \
         --set-enabled "fast-datapath-for-rhel-9-$(uname -m)-rpms" && \
-    dnf install -y firewalld jq microshift microshift-release-info cockpit && \
+    dnf install -y firewalld jq microshift microshift-release-info cockpit openscap-utils scap-security-guide && \
     systemctl enable microshift && \
     dnf clean all
 
@@ -48,3 +48,25 @@ EOF
 RUN systemctl enable microshift-make-rshared.service
 
 COPY wordpress /usr/lib/microshift/manifests.d/wordpress
+
+RUN cat > /etc/sysctl.d/99-cis-hardening.conf <<'EOF'
+# IPv6 Settings
+net.ipv6.conf.all.accept_ra = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_ra = 0
+net.ipv6.conf.default.accept_redirects = 0
+# IPv4 Settings
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.log_martians = 1
+net.ipv4.conf.default.secure_redirects = 0
+net.ipv4.ip_forward = 0
+# Ptrace Scope
+kernel.yama.ptrace_scope = 1
+EOF
+RUN echo "AllowUsers redhat" >> /etc/ssh/sshd_config
+# Run scan and hardening
+RUN oscap-im --profile xccdf_org.ssgproject.content_profile_cis /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+# Run eval to check final result
+RUN oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_cis /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml || test $? = 2
