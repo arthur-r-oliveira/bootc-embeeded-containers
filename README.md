@@ -169,18 +169,18 @@ Then, get it updated!
 
 ```mermaid
 graph TD
-    A[Old Image (base-image.tar)] --> B{tar-diff}
-    C[New Image (updated-image.tar)] --> B
-    B --> D[Delta File (delta_update.tar)]
+    A[Old Image &#40;base-image.tar&#41;] --> B{tar-diff}
+    C[New Image &#40;updated-image.tar&#41;] --> B
+    B --> D[Delta File &#40;delta_update.tar&#41;]
     D --> E{Transfer to Target System/Local Registry}
     E --> F[Target System/Local Registry]
-    F --> G[Old Image (base-image.tar)]
+    F --> G[Old Image &#40;base-image.tar&#41;]
     D --> H{tar-patch}
     G --> H
     H --> I[Reconstructed New Image]
     I --> J[Load to Local OCI Registry]
     J --> K[Push to Local Registry]
-    K --> L[Target System (bootc switch)]
+    K --> L[Target System &#40;bootc switch&#41;]
 ```
 
 __Note: Kudos to Hrushabh Sirsulwar <hsirsulw@redhat.com> who suggested this approach.__
