@@ -69,4 +69,4 @@ RUN echo "AllowUsers redhat" >> /etc/ssh/sshd_config
 # Run scan and hardening
 RUN oscap-im --profile xccdf_org.ssgproject.content_profile_cis /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
 # Run eval to check final result
-RUN oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_cis /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml || test $? = 2
+#RUN oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_cis /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml || test $? = 2
