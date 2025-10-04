@@ -1,0 +1,29 @@
+---
+# Variables specific to build hosts
+
+# Build host configuration
+build_host_config:
+  max_concurrent_builds: 2
+  build_timeout: 3600  # 1 hour
+  cleanup_after_build: true
+  log_level: "info"
+  
+# Container build configuration
+container_build_config:
+  use_buildah: false  # Use podman by default
+  build_args:
+    - "BUILDKIT_INLINE_CACHE=1"
+  cache_from: []
+  cache_to: []
+  
+# Image storage configuration
+image_storage_config:
+  storage_driver: "overlay"
+  storage_root: "/var/lib/containers/storage"
+  temp_dir: "/tmp/containers"
+  
+# Build optimization
+build_optimization:
+  parallel_builds: true
+  layer_caching: true
+  multi_stage_builds: true

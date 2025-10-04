@@ -1,0 +1,25 @@
+---
+# Default variables for registry_import_windows role
+
+# Registry import configuration
+registry_import_config:
+  data_dir: "C:\\registry-data"
+  extract_dir: "C:\\registry-extract"
+  registry_package: "{{ registry_export_config.transfer_package }}"
+  install_podman: true
+
+# Registry configuration
+registry_config:
+  container_name: "local-registry"
+  port: 5000
+  local_registry_url: "localhost:5000"
+
+# Windows specific configuration
+windows_config:
+  use_chocolatey: true
+  chocolatey_packages:
+    - podman-desktop
+  firewall_rules:
+    - port: 5000
+      protocol: tcp
+      action: allow

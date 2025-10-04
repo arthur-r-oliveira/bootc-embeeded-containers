@@ -1,0 +1,12 @@
+---
+- name: restart microshift
+  systemd:
+    name: microshift
+    state: restarted
+  when: ansible_os_family == "RedHat"
+
+- name: reload container storage
+  shell: |
+    systemctl daemon-reload
+    systemctl restart crio
+  when: ansible_os_family == "RedHat"

@@ -1,0 +1,28 @@
+---
+- name: Import Registry on Windows
+  hosts: windows_hosts
+  gather_facts: true
+  vars:
+    # Registry import configuration
+    registry_import_config:
+      data_dir: "C:\\registry-data"
+      extract_dir: "C:\\registry-extract"
+      registry_package: "{{ registry_package_path | default('registry-export.tar.gz') }}"
+      install_podman: true
+
+  tasks:
+    - name: Include registry import role
+      include_role:
+        name: registry_import_windows
+      vars:
+        registry_import_config: "{{ registry_import_config }}"
+
+    - name: Display import summary
+      debug:
+        msg: |
+          Registry import completed successfully
+          Registry URL: http://localhost:{{ registry_config.port }}
+          Container name: {{ registry_config.container_name }}
+          Data directory: {{ registry_import_config.data_dir }}
+          
+          You can now use the registry at http://localhost:{{ registry_config.port }}

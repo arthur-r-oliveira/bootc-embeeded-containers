@@ -1,0 +1,38 @@
+---
+- name: Create ISO output directory
+  file:
+    path: "{{ bootc_config.output_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Create ISO from bootc image
+  community.general.podman_container:
+    name: "bootc-iso-builder-{{ image_tag }}"
+    image: "registry.redhat.io/rhel9/bootc-image-builder:latest"
+    command: |
+      --local
+      --type iso
+      localhost/{{ bootc_config.embedded_image_name }}:{{ image_tag }}
+    volumes:
+      - "{{ bootc_config.output_dir }}:/output"
+      - "/var/lib/containers/storage:/var/lib/containers/storage"
+    privileged: true
+    security_opt:
+      - "label=type:unconfined_t"
+    auth_file: "{{ bootc_config.pull_secret_file }}"
+    state: started
+    detach: false
+  register: iso_creation_result
+
+- name: Verify ISO was created
+  stat:
+    path: "{{ bootc_config.output_dir }}/{{ bootc_config.embedded_image_name }}-{{ image_tag }}.iso"
+  register: iso_file_stat
+
+- name: Display ISO creation result
+  debug:
+    msg: |
+      ISO creation completed
+      Image: {{ bootc_config.embedded_image_name }}:{{ image_tag }}
+      ISO file: {{ bootc_config.output_dir }}/{{ bootc_config.embedded_image_name }}-{{ image_tag }}.iso
+      ISO size: {{ iso_file_stat.stat.size | filesizeformat if iso_file_stat.stat.exists else 'Not found' }}

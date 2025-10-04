@@ -1,0 +1,75 @@
+---
+- name: Test Delta Updates
+  hosts: localhost
+  gather_facts: true
+  vars:
+    test_config:
+      base_tag: "test-v1"
+      updated_tag: "test-v2"
+      
+  tasks:
+    - name: Create test base image
+      community.general.podman_image:
+        name: "{{ bootc_config.embedded_image_name }}:{{ test_config.base_tag }}"
+        source: "docker://alpine:latest"
+        state: present
+        
+    - name: Create test updated image
+      community.general.podman_image:
+        name: "{{ bootc_config.embedded_image_name }}:{{ test_config.updated_tag }}"
+        source: "docker://alpine:3.18"
+        state: present
+        
+    - name: Test delta creation
+      include_role:
+        name: bootc_delta_updates
+      vars:
+        base_image_tag: "{{ test_config.base_tag }}"
+        updated_image_tag: "{{ test_config.updated_tag }}"
+        
+    - name: Verify delta file exists
+      stat:
+        path: "{{ delta_config.delta_file }}"
+      register: delta_file_check
+      
+    - name: Test delta reconstruction
+      include_role:
+        name: bootc_delta_deployment
+      vars:
+        base_image_tag: "{{ test_config.base_tag }}"
+        updated_image_tag: "{{ test_config.updated_tag }}"
+        registry_url: "localhost:5000"
+        
+    - name: Verify reconstructed image
+      community.general.podman_image:
+        name: "{{ bootc_config.embedded_image_name }}:{{ test_config.updated_tag }}"
+        state: present
+      register: reconstructed_image_check
+      
+    - name: Display test results
+      debug:
+        msg: |
+          Delta Update Test Results:
+          - Delta file created: {{ 'PASS' if delta_file_check.stat.exists else 'FAIL' }}
+          - Image reconstructed: {{ 'PASS' if not reconstructed_image_check.failed else 'FAIL' }}
+          - Delta file size: {{ delta_file_check.stat.size | filesizeformat if delta_file_check.stat.exists else 'N/A' }}
+          
+    - name: Cleanup test artifacts
+      block:
+        - name: Remove test images
+          community.general.podman_image:
+            name: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ bootc_config.embedded_image_name }}:{{ test_config.base_tag }}"
+            - "{{ bootc_config.embedded_image_name }}:{{ test_config.updated_tag }}"
+            
+        - name: Remove delta files
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ delta_config.base_image_tar }}"
+            - "{{ delta_config.updated_image_tar }}"
+            - "{{ delta_config.delta_file }}"
+      when: cleanup_test_images | default(true)

@@ -1,0 +1,38 @@
+---
+# Default variables for oci_registry role
+
+# Registry configuration
+registry_config:
+  port: 5000
+  data_dir: "/var/lib/registry"
+  config_file: "/etc/containers/registries.conf"
+  auth_file: "/etc/containers/auth.json"
+  container_name: "local-registry"
+  image: "registry:2"
+  
+# Network configuration
+network_config:
+  insecure_registries:
+    - "localhost:5000"
+  search_registries:
+    - "docker.io"
+    - "registry.redhat.io"
+    - "quay.io"
+  blocked_registries: []
+  
+# Authentication configuration
+auth_config:
+  username: "test"
+  password: "test"
+  auth_string: "dGVzdDp0ZXN0"  # base64 encoded test:test
+  
+# Container configuration
+container_config:
+  restart_policy: "unless-stopped"
+  privileged: false
+  security_opt: []
+  
+# Service configuration
+service_config:
+  enabled: true
+  state: "started"

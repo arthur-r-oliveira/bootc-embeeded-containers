@@ -1,0 +1,60 @@
+---
+- name: WordPress Deployment Example
+  hosts: localhost
+  gather_facts: true
+  vars:
+    # WordPress specific configuration
+    wordpress_config:
+      app_images:
+        - "docker.io/library/wordpress:6.2.1-apache"
+        - "docker.io/library/mysql:8.0"
+        - "docker.io/library/redis:7-alpine"
+      custom_images:
+        - "quay.io/your-org/custom-app:latest"
+        
+    # Build configuration
+    build_config:
+      versions: ["v1", "v2"]
+      base_rhel_version: "9.6"
+      microshift_version: "4.19"
+      
+    # Registry configuration
+    registry_config:
+      url: "registry.example.com:5000"
+      namespace: "wordpress-apps"
+      insecure: false
+      
+  tasks:
+    - name: Build WordPress base image
+      include_role:
+        name: bootc_base_image
+      vars:
+        image_tag: "wordpress-base"
+        microshift_config:
+          version: "{{ build_config.microshift_version }}"
+          rhel_version: "{{ build_config.base_rhel_version }}"
+          
+    - name: Build WordPress embedded images
+      include_role:
+        name: bootc_embedded_image
+      vars:
+        image_tag: "{{ item }}"
+        base_image_tag: "wordpress-base"
+        application_images: "{{ wordpress_config.app_images + wordpress_config.custom_images }}"
+      loop: "{{ build_config.versions }}"
+      
+    - name: Create ISOs for each version
+      include_role:
+        name: bootc_iso_creation
+      vars:
+        image_tag: "{{ item }}"
+      loop: "{{ build_config.versions }}"
+      
+    - name: Display WordPress deployment summary
+      debug:
+        msg: |
+          WordPress Deployment Complete:
+          - Base image: microshift-4.19-bootc:wordpress-base
+          - Embedded images: {{ build_config.versions | map('regex_replace', '^', 'microshift-4.19-bootc-embedded:') | list }}
+          - ISOs created: {{ build_config.versions | map('regex_replace', '^', 'microshift-4.19-bootc-embedded-') | list }}
+          - Application images: {{ wordpress_config.app_images | join(', ') }}

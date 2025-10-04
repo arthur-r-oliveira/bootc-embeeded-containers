@@ -1,6 +1,5 @@
-FROM registry.redhat.io/rhel9-eus/rhel-9.6-bootc:9.6
-#FROM registry.distributed-ci.io/rhel9/rhel-bootc:9.6-1745774951
-ARG USHIFT_VER=4.19
+FROM registry.redhat.io/rhel9-eus/rhel-{{ microshift_config.rhel_version }}-bootc:{{ microshift_config.rhel_version }}
+ARG USHIFT_VER={{ microshift_config.version }}
 
 RUN . /etc/os-release && dnf upgrade -y --releasever="${VERSION_ID}" && \
     dnf config-manager \

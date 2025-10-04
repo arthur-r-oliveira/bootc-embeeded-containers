@@ -1,0 +1,30 @@
+---
+# Default variables for bootc_delta_updates role
+
+# Delta update configuration
+delta_config:
+  base_image_tar: "{{ bootc_config.build_dir }}/base-image-{{ base_image_tag }}.tar"
+  updated_image_tar: "{{ bootc_config.build_dir }}/updated-image-{{ updated_image_tag }}.tar"
+  delta_file: "{{ bootc_config.build_dir }}/delta-{{ base_image_tag }}-{{ updated_image_tag }}.tar"
+  
+# tar-diff configuration
+tar_diff_config:
+  binary_path: "/usr/local/bin/tar-diff"
+  patch_binary_path: "/usr/local/bin/tar-patch"
+  repository_url: "https://github.com/containers/tar-diff.git"
+  go_version: "1.22.12"
+  go_download_url: "https://go.dev/dl/go1.22.12.linux-amd64.tar.gz"
+  build_dir: "/tmp/tar-diff"
+  
+# Build dependencies
+build_dependencies:
+  - git
+  - make
+  - gcc
+  - glibc-devel
+  
+# Image configuration
+image_config:
+  embedded_image_name: "microshift-4.19-bootc-embedded"
+  base_image_tag: "v1"
+  updated_image_tag: "v2"

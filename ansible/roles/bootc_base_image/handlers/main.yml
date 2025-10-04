@@ -1,0 +1,12 @@
+---
+- name: restart microshift
+  systemd:
+    name: microshift
+    state: restarted
+  when: ansible_os_family == "RedHat"
+
+- name: reload firewall
+  systemd:
+    name: firewalld
+    state: reloaded
+  when: ansible_os_family == "RedHat"

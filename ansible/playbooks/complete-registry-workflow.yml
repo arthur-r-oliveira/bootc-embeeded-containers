@@ -1,0 +1,63 @@
+---
+- name: Complete Registry Workflow
+  hosts: localhost
+  gather_facts: true
+  vars:
+    # Workflow configuration
+    workflow_config:
+      build_images: true
+      setup_registry: true
+      push_images: true
+      export_registry: true
+      create_transfer_package: true
+      
+    # Registry transfer configuration
+    transfer_config:
+      package_name: "bootc-registry-{{ ansible_date_time.epoch }}.tar.gz"
+      include_scripts: true
+      include_manifests: true
+
+  tasks:
+    - name: Display workflow configuration
+      debug:
+        msg: |
+          Complete Registry Workflow Configuration:
+          - Build images: {{ workflow_config.build_images }}
+          - Setup registry: {{ workflow_config.setup_registry }}
+          - Push images: {{ workflow_config.push_images }}
+          - Export registry: {{ workflow_config.export_registry }}
+          - Create transfer package: {{ workflow_config.create_transfer_package }}
+
+    - name: Build bootc images
+      include: build-bootc-images.yml
+      when: workflow_config.build_images
+
+    - name: Setup registry
+      include: setup-registry.yml
+      when: workflow_config.setup_registry
+
+    - name: Push images to registry
+      include: push-to-registry.yml
+      when: workflow_config.push_images
+
+    - name: Export registry for transfer
+      include: export-registry.yml
+      when: workflow_config.export_registry
+
+    - name: Display workflow completion summary
+      debug:
+        msg: |
+          Complete Registry Workflow finished successfully!
+          
+          Generated artifacts:
+          - Registry export package: {{ bootc_config.build_dir }}/registry-export-{{ ansible_date_time.epoch }}.tar.gz
+          - Import scripts for Windows and Linux
+          - Registry manifest with image details
+          
+          Next steps:
+          1. Transfer the registry package to target system
+          2. Extract and run the appropriate import script
+          3. Start using the registry on the target system
+          
+          For Windows: Run import-registry-windows.ps1
+          For Linux: Run import-registry-linux.sh

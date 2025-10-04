@@ -1,0 +1,41 @@
+---
+- name: Export Registry for Transfer
+  hosts: registry_hosts
+  gather_facts: true
+  vars:
+    # Registry export configuration
+    registry_export_config:
+      export_dir: "{{ bootc_config.build_dir }}/registry-export"
+      transfer_package: "{{ bootc_config.build_dir }}/registry-export-{{ ansible_date_time.epoch }}.tar.gz"
+      include_manifests: true
+      include_scripts: true
+
+  tasks:
+    - name: Get images in registry
+      shell: |
+        podman search {{ registry_config.local_registry_url }} --format "{{.Name}}" | grep -v "INDEX" | head -20
+      register: registry_images
+      changed_when: false
+
+    - name: Set images list fact
+      set_fact:
+        images_in_registry: "{{ registry_images.stdout_lines | map('regex_replace', '^' + registry_config.local_registry_url + '/', '') | map('regex_replace', ':.*', '') | list }}"
+
+    - name: Include registry export role
+      include_role:
+        name: registry_export
+      vars:
+        images_in_registry: "{{ images_in_registry }}"
+
+    - name: Display export summary
+      debug:
+        msg: |
+          Registry export completed successfully
+          Export directory: {{ registry_export_config.export_dir }}
+          Transfer package: {{ registry_export_config.transfer_package }}
+          Images included: {{ images_in_registry | length }}
+          
+          Next steps:
+          1. Transfer {{ registry_export_config.transfer_package }} to target system
+          2. Extract and run import script
+          3. Start registry on target system

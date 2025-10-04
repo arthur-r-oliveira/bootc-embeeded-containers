@@ -1,0 +1,38 @@
+---
+# Variables specific to target hosts (edge systems)
+
+# Target host configuration
+target_host_config:
+  enable_auto_updates: false
+  update_check_interval: "24h"
+  rollback_enabled: true
+  max_rollback_versions: 3
+  
+# Bootc configuration for target hosts
+target_bootc_config:
+  enable_auto_switch: false
+  switch_timeout: 300
+  pre_switch_validation: true
+  post_switch_validation: true
+  
+# Delta update configuration for targets
+target_delta_config:
+  enable_delta_updates: true
+  delta_storage_dir: "/var/ostree/updates"
+  max_delta_files: 10
+  cleanup_old_deltas: true
+  
+# Network configuration for targets
+target_network_config:
+  registry_endpoint: "{{ hostvars[groups['registry_hosts'][0]]['ansible_default_ipv4']['address'] }}:5000"
+  enable_proxy: false
+  proxy_url: ""
+  proxy_username: ""
+  proxy_password: ""
+  
+# Monitoring configuration for targets
+target_monitoring_config:
+  enable_health_checks: true
+  health_check_interval: "5m"
+  enable_logging: true
+  log_retention_days: 30

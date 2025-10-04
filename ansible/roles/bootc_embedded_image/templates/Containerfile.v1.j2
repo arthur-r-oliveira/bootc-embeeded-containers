@@ -1,0 +1,32 @@
+FROM localhost/{{ bootc_config.base_image_name }}:{{ base_image_tag }}
+
+ARG USHIFT_BASE_IMAGE_NAME
+ARG USHIFT_BASE_IMAGE_TAG
+
+ENV IMAGE_STORAGE_DIR=/usr/lib/containers/storage
+ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
+
+# use to embed application images
+COPY ./embed_image.sh /usr/bin/
+COPY ./copy_embedded_images.sh /usr/bin/
+
+ENV IMAGE_STORAGE_DIR=/usr/lib/containers/storage
+ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
+
+# Pull the container images into /usr/lib/containers/storage:
+# - Each image goes into a separate sub-directory
+# - Sub-directories are named after the image reference string SHA
+# - An image list file maps image references to their name SHA
+# First for MicroShift payload
+RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json \
+    images="$(jq -r ".images[]" /usr/share/microshift/release/release-"$(uname -m)".json)" ; \
+    mkdir -p "${IMAGE_STORAGE_DIR}" ; \
+    for img in ${images} ; do \
+       /usr/bin/embed_image.sh ${img} --authfile /run/secrets/pull-secret.json ; \
+     done 
+# Then for Applications
+RUN --mount=type=secret,id=pullsecret,dst=/run/secrets/pull-secret.json <<PULL
+{% for app_image in application_images %}
+    /usr/bin/embed_image.sh {{ app_image }}
+{% endfor %}
+PULL

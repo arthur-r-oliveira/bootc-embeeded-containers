@@ -1,0 +1,29 @@
+---
+- name: Setup OCI Registry for Bootc Images
+  hosts: registry_hosts
+  gather_facts: true
+  vars:
+    # Registry configuration
+    registry_config:
+      port: 5000
+      data_dir: "/var/lib/registry"
+      config_file: "/etc/containers/registries.conf"
+      auth_file: "/etc/containers/auth.json"
+      insecure_registries:
+        - "localhost:5000"
+        - "{{ ansible_default_ipv4.address }}:5000"
+      # For disconnected environments
+      local_registry_url: "{{ ansible_default_ipv4.address }}:5000"
+
+  tasks:
+    - name: Include registry setup role
+      include_role:
+        name: oci_registry
+
+    - name: Display registry information
+      debug:
+        msg: |
+          Registry setup completed
+          Registry URL: {{ registry_config.local_registry_url }}
+          Data directory: {{ registry_config.data_dir }}
+          Access: podman login {{ registry_config.local_registry_url }}

@@ -1,0 +1,49 @@
+---
+# Default variables for bootc_vm_testing role
+
+# VM configuration
+vm_config:
+  vm_name: "microshift-4.19-bootc-vm1"
+  memory_mb: 8192
+  vcpus: 4
+  disk_size_gb: 120
+  disk_path: "/var/lib/libvirt/images/{{ vm_config.vm_name }}.qcow2"
+  os_variant: "fedora-coreos-stable"
+  
+# Network configuration
+network_config:
+  network_name: "microshift-net"
+  network_cidr: "192.168.100.0/24"
+  vm_ip: "192.168.100.10"
+  forward: "nat"
+  dns_forwarders:
+    - "8.8.8.8"
+    - "8.8.4.4"
+  
+# Image configuration
+image_config:
+  embedded_image_name: "microshift-4.19-bootc-embedded"
+  image_tag: "v1"
+  iso_path: "{{ bootc_config.output_dir }}/{{ image_config.embedded_image_name }}-{{ image_config.image_tag }}.iso"
+  
+# Kickstart configuration
+kickstart_config:
+  template_file: "kickstart.ks.j2"
+  output_file: "/tmp/kickstart-{{ vm_config.vm_name }}.ks"
+  language: "en_US.UTF-8"
+  keyboard: "us"
+  timezone: "UTC"
+  
+# Virtualization packages
+virt_packages:
+  - qemu-kvm
+  - libvirt
+  - virt-install
+  - virt-manager
+  - libvirt-python
+  
+# Service configuration
+service_config:
+  libvirtd:
+    enabled: true
+    state: "started"

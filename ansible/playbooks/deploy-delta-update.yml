@@ -1,0 +1,28 @@
+---
+- name: Deploy Delta Updates to Target Systems
+  hosts: target_hosts
+  gather_facts: true
+  vars:
+    # Delta deployment configuration
+    delta_deploy_config:
+      base_image_tag: "v1"
+      updated_image_tag: "v2"
+      registry_url: "{{ hostvars[groups['registry_hosts'][0]]['ansible_default_ipv4']['address'] }}:5000"
+      delta_file_path: "{{ bootc_config.build_dir }}/delta-{{ delta_deploy_config.base_image_tag }}-{{ delta_deploy_config.updated_image_tag }}.tar"
+      base_image_tar: "{{ bootc_config.build_dir }}/base-image-{{ delta_deploy_config.base_image_tag }}.tar"
+
+  tasks:
+    - name: Include delta deployment role
+      include_role:
+        name: bootc_delta_deployment
+      vars:
+        base_image_tag: "{{ delta_deploy_config.base_image_tag }}"
+        updated_image_tag: "{{ delta_deploy_config.updated_image_tag }}"
+        registry_url: "{{ delta_deploy_config.registry_url }}"
+
+    - name: Display deployment summary
+      debug:
+        msg: |
+          Delta update deployed successfully
+          Target system updated to: {{ delta_deploy_config.updated_image_tag }}
+          Registry: {{ delta_deploy_config.registry_url }}

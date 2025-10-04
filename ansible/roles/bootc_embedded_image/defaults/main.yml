@@ -1,0 +1,28 @@
+---
+# Default variables for bootc_embedded_image role
+
+# Embedded image configuration
+bootc_embedded_config:
+  image_name: "microshift-4.19-bootc-embedded"
+  base_image_name: "microshift-4.19-bootc"
+  pull_secret_file: "{{ playbook_dir }}/../.pull-secret.json"
+  build_dir: "{{ ansible_user_dir }}/bootc-builds"
+  
+# Application images to embed
+application_images:
+  - "docker.io/library/wordpress:6.2.1-apache"
+  - "docker.io/library/mysql:8.0"
+  
+# MicroShift payload images (auto-detected)
+microshift_payload_images: []
+  
+# Image storage configuration
+image_storage_config:
+  storage_dir: "/usr/lib/containers/storage"
+  image_list_file: "/usr/lib/containers/storage/image-list.txt"
+  
+# Containerfile templates
+containerfile_templates:
+  v1: "Containerfile.v1.j2"
+  v2: "Containerfile.v2.j2"
+  v3: "Containerfile.v3.j2"
