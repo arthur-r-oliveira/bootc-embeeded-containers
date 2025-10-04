@@ -24,18 +24,14 @@
     mode: '0755'
 
 - name: Build embedded bootc image
-  community.general.podman_image:
+  containers.podman.podman_image:
     name: "{{ bootc_config.embedded_image_name }}:{{ image_tag }}"
+    path: "{{ bootc_config.build_dir }}"
     build:
-      path: "{{ bootc_config.build_dir }}"
       file: "Containerfile.{{ image_tag }}"
-      args:
-        USHIFT_BASE_IMAGE_NAME: "{{ bootc_config.base_image_name }}"
-        USHIFT_BASE_IMAGE_TAG: "{{ base_image_tag }}"
-        USHIFT_VER: "{{ microshift_config.version }}"
-        RHEL_VER: "{{ microshift_config.rhel_version }}"
+      extra_args: "--build-arg USHIFT_BASE_IMAGE_NAME={{ bootc_config.base_image_name }} --build-arg USHIFT_BASE_IMAGE_TAG={{ base_image_tag }} --build-arg USHIFT_VER={{ microshift_config.version }} --build-arg RHEL_VER={{ microshift_config.rhel_version }}"
     auth_file: "{{ bootc_config.pull_secret_file }}"
-    state: present
+    state: build
   register: embedded_image_build
 
 - name: Display embedded image build result
@@ -43,5 +39,5 @@
     msg: |
       Embedded image built successfully
       Image: {{ bootc_config.embedded_image_name }}:{{ image_tag }}
-      Image ID: {{ embedded_image_build.image_id }}
+      Build completed: {{ embedded_image_build.changed }}
       Base image: {{ bootc_config.base_image_name }}:{{ base_image_tag }}

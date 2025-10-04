@@ -22,13 +22,13 @@
         base_image_tag: "{{ test_config.test_base_image_tag }}"
         
     - name: Verify base image exists
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ bootc_config.base_image_name }}:{{ test_config.test_image_tag }}"
         state: present
       register: base_image_check
       
     - name: Verify embedded image exists
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ bootc_config.embedded_image_name }}:{{ test_config.test_image_tag }}"
         state: present
       register: embedded_image_check
@@ -41,7 +41,7 @@
           - Embedded image: {{ 'PASS' if embedded_image_check.changed or not embedded_image_check.failed else 'FAIL' }}
           
     - name: Cleanup test images
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ item }}"
         state: absent
       loop:

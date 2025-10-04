@@ -6,7 +6,7 @@
     mode: '0755'
 
 - name: Stop registry container for export
-  community.general.podman_container:
+  containers.podman.podman_container:
     name: "{{ registry_config.container_name }}"
     state: stopped
   register: stop_result
@@ -70,7 +70,7 @@
   register: package_stat
 
 - name: Restart registry container
-  community.general.podman_container:
+  containers.podman.podman_container:
     name: "{{ registry_config.container_name }}"
     state: started
   when: restart_registry | default(true)

@@ -60,7 +60,7 @@
   register: tar_patch_stat
 
 - name: Export base image to tar
-  community.general.podman_image:
+  containers.podman.podman_image:
     name: "{{ bootc_config.embedded_image_name }}:{{ base_image_tag }}"
     state: present
   register: base_image_info

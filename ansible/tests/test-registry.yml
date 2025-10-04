@@ -16,7 +16,7 @@
         timeout: 60
         
     - name: Test registry connectivity
-      community.general.podman_login:
+      containers.podman.podman_login:
         registry: "{{ registry_config.local_registry_url }}"
         username: "{{ auth_config.username }}"
         password: "{{ auth_config.password }}"
@@ -24,14 +24,14 @@
       register: login_result
       
     - name: Test image push to registry
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ registry_config.local_registry_url }}/test-image:latest"
         source: "docker://alpine:latest"
         state: present
       register: push_result
       
     - name: Test image pull from registry
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ registry_config.local_registry_url }}/test-image:latest"
         state: present
       register: pull_result
@@ -45,7 +45,7 @@
           - Image pull: {{ 'PASS' if not pull_result.failed else 'FAIL' }}
           
     - name: Cleanup test images
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ registry_config.local_registry_url }}/test-image:latest"
         state: absent
       when: cleanup_test_images | default(true)

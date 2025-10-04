@@ -38,7 +38,7 @@
     group: root
 
 - name: Start registry container
-  community.general.podman_container:
+  containers.podman.podman_container:
     name: "local-registry"
     image: "registry:2"
     ports:
@@ -57,7 +57,7 @@
     timeout: 60
 
 - name: Test registry connectivity
-  community.general.podman_login:
+  containers.podman.podman_login:
     registry: "{{ registry_config.local_registry_url }}"
     username: "test"
     password: "test"
