@@ -1,0 +1,27 @@
+# This is a system-wide configuration file used to
+# keep track of registries for various container
+# image operations (pull, push, login, logout).
+# It can be used to configure registries for
+# Podman, Buildah, CRI-O, and Skopeo.
+#
+# The file format is TOML v1.0.0 and looks like:
+#
+# [registries.search]
+# registries = ['registry1.com', 'registry2.com']
+#
+# [registries.insecure]
+# registries = ['registry3.com', 'registry4.com']
+#
+# [registries.block]
+# registries = ['registry5.com']
+
+[registries.search]
+registries = ['docker.io', 'registry.redhat.io', 'quay.io']
+
+[registries.insecure]
+registries = [{% for registry in registry_config.insecure_registries %}'{{ registry }}'{% if not loop.last %}, {% endif %}{% endfor %}]
+
+[registries.block]
+registries = []
+
+# Registry credentials are stored in the /etc/containers/auth.json file

@@ -1,0 +1,76 @@
+---
+# Global variables for all hosts
+# This file contains default values that can be overridden in inventory files
+
+# Bootc configuration
+bootc_config:
+  pull_secret_file: "{{ playbook_dir }}/../.pull-secret.json"
+  base_image_name: "microshift-4.19-bootc"
+  embedded_image_name: "microshift-4.19-bootc-embedded"
+  registry_url: "quay.io"
+  registry_namespace: "rhn_support_arolivei"
+  build_dir: "{{ ansible_user_dir }}/bootc-builds"
+  output_dir: "{{ build_dir }}/output"
+  
+# MicroShift configuration
+microshift_config:
+  version: "4.19"
+  rhel_version: "9.6"
+  user_password: "redhat02"
+  
+# Application images to embed
+application_images:
+  - "docker.io/library/wordpress:6.2.1-apache"
+  - "docker.io/library/mysql:8.0"
+  
+# Registry configuration
+registry_config:
+  port: 5000
+  data_dir: "/var/lib/registry"
+  config_file: "/etc/containers/registries.conf"
+  auth_file: "/etc/containers/auth.json"
+  insecure_registries:
+    - "localhost:5000"
+  search_registries:
+    - "docker.io"
+    - "registry.redhat.io"
+    - "quay.io"
+  blocked_registries: []
+  
+# Delta update configuration
+delta_config:
+  enabled: true
+  base_image_tag: "v1"
+  updated_image_tag: "v2"
+  tar_diff_binary: "/usr/local/bin/tar-diff"
+  tar_patch_binary: "/usr/local/bin/tar-patch"
+  
+# VM testing configuration
+vm_config:
+  vm_name: "microshift-4.19-bootc-vm1"
+  network_name: "microshift-net"
+  network_cidr: "192.168.100.0/24"
+  vm_ip: "192.168.100.10"
+  memory_mb: 8192
+  vcpus: 4
+  disk_size_gb: 120
+  disk_path: "/var/lib/libvirt/images/{{ vm_config.vm_name }}.qcow2"
+  os_variant: "fedora-coreos-stable"
+  
+# Security configuration
+security_config:
+  enable_cis_hardening: true
+  enable_openscap: true
+  firewall_ports:
+    - { port: "22", protocol: "tcp", zone: "public" }
+    - { port: "80", protocol: "tcp", zone: "public" }
+    - { port: "443", protocol: "tcp", zone: "public" }
+    - { port: "30000-32767", protocol: "tcp", zone: "public" }
+    - { port: "30000-32767", protocol: "udp", zone: "public" }
+  
+# Network configuration
+network_config:
+  trusted_networks:
+    - "10.42.0.0/16"
+    - "169.254.169.1"
+    - "fd01::/48"

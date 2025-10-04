@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  author: "Red Hat Support Team"
+  description: "Import registry data on Windows systems"
+  company: "Red Hat"
+  license: "GPL-3.0"
+  min_ansible_version: "2.15"
+  platforms:
+    - name: "Windows"
+      versions:
+        - "10"
+        - "11"
+  galaxy_tags:
+    - "windows"
+    - "registry"
+    - "import"
+    - "podman"
+
+dependencies: []

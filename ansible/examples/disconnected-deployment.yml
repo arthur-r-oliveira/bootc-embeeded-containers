@@ -1,0 +1,78 @@
+---
+- name: Disconnected Deployment Example
+  hosts: localhost
+  gather_facts: true
+  vars:
+    # Disconnected environment configuration
+    disconnected_config:
+      management_node: "192.168.1.10"
+      edge_nodes:
+        - "192.168.1.11"
+        - "192.168.1.12"
+        - "192.168.1.13"
+      registry_port: 5000
+      
+    # Application configuration
+    app_config:
+      images:
+        - "docker.io/library/nginx:latest"
+        - "docker.io/library/postgres:15"
+        - "quay.io/prometheus/prometheus:latest"
+      custom_registry: "registry.example.com"
+      
+    # Update strategy
+    update_config:
+      base_version: "v1"
+      target_version: "v2"
+      delta_enabled: true
+      
+  tasks:
+    - name: Setup management registry
+      include_role:
+        name: oci_registry
+      vars:
+        registry_config:
+          port: "{{ disconnected_config.registry_port }}"
+          local_registry_url: "{{ disconnected_config.management_node }}:{{ disconnected_config.registry_port }}"
+          
+    - name: Build base images on management node
+      include_role:
+        name: bootc_base_image
+      vars:
+        image_tag: "{{ update_config.base_version }}"
+        
+    - name: Build embedded images
+      include_role:
+        name: bootc_embedded_image
+      vars:
+        image_tag: "{{ item }}"
+        application_images: "{{ app_config.images }}"
+      loop: [update_config.base_version, update_config.target_version]
+      
+    - name: Create delta updates
+      include_role:
+        name: bootc_delta_updates
+      vars:
+        base_image_tag: "{{ update_config.base_version }}"
+        updated_image_tag: "{{ update_config.target_version }}"
+      when: update_config.delta_enabled
+      
+    - name: Deploy to edge nodes
+      include_role:
+        name: bootc_delta_deployment
+      vars:
+        base_image_tag: "{{ update_config.base_version }}"
+        updated_image_tag: "{{ update_config.target_version }}"
+        registry_url: "{{ disconnected_config.management_node }}:{{ disconnected_config.registry_port }}"
+      delegate_to: "{{ item }}"
+      loop: "{{ disconnected_config.edge_nodes }}"
+      
+    - name: Display disconnected deployment summary
+      debug:
+        msg: |
+          Disconnected Deployment Complete:
+          - Management node: {{ disconnected_config.management_node }}
+          - Edge nodes: {{ disconnected_config.edge_nodes | join(', ') }}
+          - Registry: {{ disconnected_config.management_node }}:{{ disconnected_config.registry_port }}
+          - Delta updates: {{ 'Enabled' if update_config.delta_enabled else 'Disabled' }}
+          - Application images: {{ app_config.images | join(', ') }}

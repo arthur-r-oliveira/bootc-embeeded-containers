@@ -1,0 +1,69 @@
+---
+- name: Check if Podman Desktop is installed
+  win_shell: |
+    try {
+        $version = podman --version
+        Write-Output "Podman found: $version"
+        exit 0
+    } catch {
+        Write-Output "Podman not found"
+        exit 1
+    }
+  register: podman_check
+  failed_when: podman_check.rc != 0
+
+- name: Install Podman Desktop if not present
+  win_chocolatey:
+    name: podman-desktop
+    state: present
+  when: install_podman | default(true)
+
+- name: Create registry data directory
+  win_file:
+    path: "{{ registry_import_config.data_dir }}"
+    state: directory
+
+- name: Extract registry data
+  win_unarchive:
+    src: "{{ registry_import_config.registry_package }}"
+    dest: "{{ registry_import_config.extract_dir }}"
+    creates: "{{ registry_import_config.data_dir }}\\registry-data.tar.gz"
+
+- name: Extract registry data archive
+  win_shell: |
+    tar -xzf "{{ registry_import_config.data_dir }}\\registry-data.tar.gz" -C "{{ registry_import_config.data_dir }}"
+  args:
+    creates: "{{ registry_import_config.data_dir }}\\docker"
+
+- name: Stop existing registry container
+  win_shell: |
+    podman stop {{ registry_config.container_name }} 2>$null
+    podman rm {{ registry_config.container_name }} 2>$null
+  ignore_errors: true
+
+- name: Start registry container
+  win_shell: |
+    podman run -d --name {{ registry_config.container_name }} -p {{ registry_config.port }}:5000 -v "{{ registry_import_config.data_dir }}:/var/lib/registry" registry:2
+  register: start_result
+
+- name: Wait for registry to be ready
+  win_wait_for:
+    port: "{{ registry_config.port }}"
+    host: "127.0.0.1"
+    delay: 10
+    timeout: 60
+
+- name: Test registry connectivity
+  win_uri:
+    url: "http://localhost:{{ registry_config.port }}/v2/"
+    method: GET
+  register: connectivity_test
+
+- name: Display import results
+  win_debug:
+    msg: |
+      Registry import completed successfully
+      Registry URL: http://localhost:{{ registry_config.port }}
+      Container name: {{ registry_config.container_name }}
+      Data directory: {{ registry_import_config.data_dir }}
+      Status: {{ 'Ready' if connectivity_test.status == 200 else 'Not responding' }}

@@ -1,0 +1,79 @@
+---
+- name: Install virtualization packages
+  package:
+    name:
+      - qemu-kvm
+      - libvirt
+      - virt-install
+      - virt-manager
+      - libvirt-python
+    state: present
+
+- name: Start and enable libvirtd
+  systemd:
+    name: libvirtd
+    state: started
+    enabled: true
+
+- name: Add user to libvirt group
+  user:
+    name: "{{ ansible_user }}"
+    groups: libvirt
+    append: true
+
+- name: Create VM directory
+  file:
+    path: "/var/lib/libvirt/images/{{ vm_config.vm_name }}"
+    state: directory
+    mode: '0755'
+
+- name: Create kickstart file
+  template:
+    src: kickstart.ks.j2
+    dest: "/tmp/kickstart-{{ vm_config.vm_name }}.ks"
+    mode: '0644'
+
+- name: Create isolated network
+  community.libvirt.virt_net:
+    name: "{{ vm_config.network_name }}"
+    state: present
+    forward: "nat"
+    nat:
+      ipv4: true
+    addresses:
+      - "{{ vm_config.network_cidr }}"
+    dns:
+      enabled: true
+      forwarders:
+        - "8.8.8.8"
+        - "8.8.4.4"
+
+- name: Create VM
+  community.libvirt.virt:
+    name: "{{ vm_config.vm_name }}"
+    state: running
+    memory: "{{ vm_config.memory_mb }}"
+    vcpus: "{{ vm_config.vcpus }}"
+    disk:
+      - "{{ vm_config.disk_path }},{{ vm_config.disk_size_gb }}G"
+    network: "{{ vm_config.network_name }}"
+    os_variant: "fedora-coreos-stable"
+    cdrom: "{{ bootc_config.output_dir }}/{{ bootc_config.embedded_image_name }}-{{ vm_config.image_tag }}.iso"
+    extra_args: "inst.ks=file://kickstart-{{ vm_config.vm_name }}.ks"
+  register: vm_creation_result
+
+- name: Wait for VM to be accessible
+  wait_for:
+    port: 22
+    host: "{{ vm_config.vm_ip }}"
+    delay: 30
+    timeout: 300
+
+- name: Display VM creation summary
+  debug:
+    msg: |
+      VM created successfully
+      VM Name: {{ vm_config.vm_name }}
+      VM IP: {{ vm_config.vm_ip }}
+      Network: {{ vm_config.network_name }}
+      ISO: {{ bootc_config.output_dir }}/{{ bootc_config.embedded_image_name }}-{{ vm_config.image_tag }}.iso

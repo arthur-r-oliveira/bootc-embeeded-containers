@@ -1,0 +1,27 @@
+---
+# Default variables for registry_export role
+
+# Registry export configuration
+registry_export_config:
+  export_dir: "{{ bootc_config.build_dir }}/registry-export"
+  transfer_package: "{{ bootc_config.build_dir }}/registry-export-{{ ansible_date_time.epoch }}.tar.gz"
+  include_manifests: true
+  include_scripts: true
+  compression_level: 6
+
+# Registry configuration
+registry_config:
+  container_name: "local-registry"
+  data_dir: "/var/lib/registry"
+  config_file: "/etc/containers/registries.conf"
+  auth_file: "/etc/containers/auth.json"
+  port: 5000
+
+# Images in registry (will be populated dynamically)
+images_in_registry: []
+
+# Export options
+export_options:
+  restart_registry: true
+  verify_export: true
+  create_checksums: true

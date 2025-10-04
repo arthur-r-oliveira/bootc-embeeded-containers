@@ -1,0 +1,32 @@
+---
+# Default variables for bootc_base_image role
+
+# Base image configuration
+bootc_base_config:
+  image_name: "microshift-4.19-bootc"
+  pull_secret_file: "{{ playbook_dir }}/../.pull-secret.json"
+  build_dir: "{{ ansible_user_dir }}/bootc-builds"
+  
+# MicroShift configuration
+microshift_base_config:
+  version: "4.19"
+  rhel_version: "9.6"
+  user_password: "redhat02"
+  
+# Security configuration
+security_config:
+  enable_cis_hardening: true
+  enable_openscap: true
+  firewall_ports:
+    - { port: "22", protocol: "tcp", zone: "public" }
+    - { port: "80", protocol: "tcp", zone: "public" }
+    - { port: "443", protocol: "tcp", zone: "public" }
+    - { port: "30000-32767", protocol: "tcp", zone: "public" }
+    - { port: "30000-32767", protocol: "udp", zone: "public" }
+  
+# Network configuration
+network_config:
+  trusted_networks:
+    - "10.42.0.0/16"
+    - "169.254.169.1"
+    - "fd01::/48"

@@ -1,0 +1,62 @@
+---
+- name: Build Red Hat Image Mode (bootc) Self-Contained Appliances
+  hosts: build_hosts
+  gather_facts: true
+  vars:
+    # Global configuration
+    bootc_config:
+      pull_secret_file: "{{ playbook_dir }}/../.pull-secret.json"
+      base_image_name: "microshift-4.19-bootc"
+      embedded_image_name: "microshift-4.19-bootc-embedded"
+      registry_url: "quay.io"
+      registry_namespace: "rhn_support_arolivei"
+      build_dir: "{{ ansible_user_dir }}/bootc-builds"
+      output_dir: "{{ build_dir }}/output"
+      
+    # MicroShift configuration
+    microshift_config:
+      version: "4.19"
+      rhel_version: "9.6"
+      user_password: "redhat02"
+      
+    # Application images to embed
+    application_images:
+      - "docker.io/library/wordpress:6.2.1-apache"
+      - "docker.io/library/mysql:8.0"
+      
+    # Build tags/versions
+    build_tags:
+      - "v1"
+      - "v2" 
+      - "v3"
+
+  tasks:
+    - name: Include base image building role
+      include_role:
+        name: bootc_base_image
+      vars:
+        image_tag: "{{ item }}"
+      loop: "{{ build_tags }}"
+      when: item == "v1"
+
+    - name: Include embedded image building role
+      include_role:
+        name: bootc_embedded_image
+      vars:
+        image_tag: "{{ item }}"
+        base_image_tag: "{{ 'latest' if item == 'v1' else (item | regex_replace('v', 'v') | int - 1) | string | regex_replace('^', 'v') }}"
+      loop: "{{ build_tags }}"
+
+    - name: Include ISO creation role
+      include_role:
+        name: bootc_iso_creation
+      vars:
+        image_tag: "{{ item }}"
+      loop: "{{ build_tags }}"
+
+    - name: Display build summary
+      debug:
+        msg: |
+          Build completed for tags: {{ build_tags | join(', ') }}
+          Images available at: {{ bootc_config.build_dir }}
+          ISOs available at: {{ bootc_config.output_dir }}

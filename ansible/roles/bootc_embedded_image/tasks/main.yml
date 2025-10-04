@@ -1,0 +1,47 @@
+---
+- name: Create Containerfile for embedded image
+  template:
+    src: "Containerfile.{{ image_tag }}.j2"
+    dest: "{{ bootc_config.build_dir }}/Containerfile.{{ image_tag }}"
+    mode: '0644'
+
+- name: Copy embed_image.sh script
+  copy:
+    src: "{{ playbook_dir }}/../../embed_image.sh"
+    dest: "{{ bootc_config.build_dir }}/embed_image.sh"
+    mode: '0755'
+
+- name: Copy copy_embedded_images.sh script
+  copy:
+    src: "{{ playbook_dir }}/../../copy_embedded_images.sh"
+    dest: "{{ bootc_config.build_dir }}/copy_embedded_images.sh"
+    mode: '0755'
+
+- name: Copy WordPress manifests
+  copy:
+    src: "{{ playbook_dir }}/../../wordpress/"
+    dest: "{{ bootc_config.build_dir }}/wordpress/"
+    mode: '0755'
+
+- name: Build embedded bootc image
+  community.general.podman_image:
+    name: "{{ bootc_config.embedded_image_name }}:{{ image_tag }}"
+    build:
+      path: "{{ bootc_config.build_dir }}"
+      file: "Containerfile.{{ image_tag }}"
+      args:
+        USHIFT_BASE_IMAGE_NAME: "{{ bootc_config.base_image_name }}"
+        USHIFT_BASE_IMAGE_TAG: "{{ base_image_tag }}"
+        USHIFT_VER: "{{ microshift_config.version }}"
+        RHEL_VER: "{{ microshift_config.rhel_version }}"
+    auth_file: "{{ bootc_config.pull_secret_file }}"
+    state: present
+  register: embedded_image_build
+
+- name: Display embedded image build result
+  debug:
+    msg: |
+      Embedded image built successfully
+      Image: {{ bootc_config.embedded_image_name }}:{{ image_tag }}
+      Image ID: {{ embedded_image_build.image_id }}
+      Base image: {{ bootc_config.base_image_name }}:{{ base_image_tag }}

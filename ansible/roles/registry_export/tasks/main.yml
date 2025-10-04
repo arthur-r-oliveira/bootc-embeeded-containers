@@ -1,0 +1,90 @@
+---
+- name: Create registry export directory
+  file:
+    path: "{{ registry_export_config.export_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Stop registry container for export
+  community.general.podman_container:
+    name: "{{ registry_config.container_name }}"
+    state: stopped
+  register: stop_result
+
+- name: Wait for registry to stop
+  wait_for:
+    port: "{{ registry_config.port }}"
+    host: "{{ ansible_default_ipv4.address }}"
+    state: stopped
+    timeout: 30
+
+- name: Create registry data archive
+  archive:
+    path: "{{ registry_config.data_dir }}"
+    dest: "{{ registry_export_config.export_dir }}/registry-data.tar.gz"
+    format: gz
+    mode: '0644'
+  register: archive_result
+
+- name: Export registry configuration
+  copy:
+    src: "{{ registry_config.config_file }}"
+    dest: "{{ registry_export_config.export_dir }}/registries.conf"
+    mode: '0644'
+
+- name: Export registry authentication
+  copy:
+    src: "{{ registry_config.auth_file }}"
+    dest: "{{ registry_export_config.export_dir }}/auth.json"
+    mode: '0600'
+
+- name: Create registry manifest
+  template:
+    src: registry-manifest.json.j2
+    dest: "{{ registry_export_config.export_dir }}/registry-manifest.json"
+    mode: '0644'
+
+- name: Create Windows import script
+  template:
+    src: import-registry-windows.ps1.j2
+    dest: "{{ registry_export_config.export_dir }}/import-registry-windows.ps1"
+    mode: '0755'
+
+- name: Create Linux import script
+  template:
+    src: import-registry-linux.sh.j2
+    dest: "{{ registry_export_config.export_dir }}/import-registry-linux.sh"
+    mode: '0755'
+
+- name: Create transfer package
+  archive:
+    path: "{{ registry_export_config.export_dir }}"
+    dest: "{{ registry_export_config.transfer_package }}"
+    format: gz
+    mode: '0644'
+  register: transfer_package_result
+
+- name: Get package size
+  stat:
+    path: "{{ registry_export_config.transfer_package }}"
+  register: package_stat
+
+- name: Restart registry container
+  community.general.podman_container:
+    name: "{{ registry_config.container_name }}"
+    state: started
+  when: restart_registry | default(true)
+
+- name: Display export results
+  debug:
+    msg: |
+      Registry export completed successfully
+      Export directory: {{ registry_export_config.export_dir }}
+      Transfer package: {{ registry_export_config.transfer_package }}
+      Package size: {{ package_stat.stat.size | filesizeformat }}
+      Images included: {{ images_in_registry | length }}
+      
+      Next steps:
+      1. Transfer {{ registry_export_config.transfer_package }} to target system
+      2. Extract and run import script
+      3. Start registry on target system

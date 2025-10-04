@@ -1,0 +1,50 @@
+---
+- name: Test Bootc Image Building
+  hosts: localhost
+  gather_facts: true
+  vars:
+    test_config:
+      test_image_tag: "test-v1"
+      test_base_image_tag: "latest"
+      
+  tasks:
+    - name: Test base image building
+      include_role:
+        name: bootc_base_image
+      vars:
+        image_tag: "{{ test_config.test_image_tag }}"
+        
+    - name: Test embedded image building
+      include_role:
+        name: bootc_embedded_image
+      vars:
+        image_tag: "{{ test_config.test_image_tag }}"
+        base_image_tag: "{{ test_config.test_base_image_tag }}"
+        
+    - name: Verify base image exists
+      community.general.podman_image:
+        name: "{{ bootc_config.base_image_name }}:{{ test_config.test_image_tag }}"
+        state: present
+      register: base_image_check
+      
+    - name: Verify embedded image exists
+      community.general.podman_image:
+        name: "{{ bootc_config.embedded_image_name }}:{{ test_config.test_image_tag }}"
+        state: present
+      register: embedded_image_check
+      
+    - name: Display test results
+      debug:
+        msg: |
+          Test Results:
+          - Base image: {{ 'PASS' if base_image_check.changed or not base_image_check.failed else 'FAIL' }}
+          - Embedded image: {{ 'PASS' if embedded_image_check.changed or not embedded_image_check.failed else 'FAIL' }}
+          
+    - name: Cleanup test images
+      community.general.podman_image:
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ bootc_config.base_image_name }}:{{ test_config.test_image_tag }}"
+        - "{{ bootc_config.embedded_image_name }}:{{ test_config.test_image_tag }}"
+      when: cleanup_test_images | default(true)

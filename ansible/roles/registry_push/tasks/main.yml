@@ -1,0 +1,46 @@
+---
+- name: Verify registry is running
+  community.general.podman_container:
+    name: "{{ registry_config.container_name }}"
+    state: started
+  register: registry_status
+
+- name: Wait for registry to be ready
+  wait_for:
+    port: "{{ registry_config.port }}"
+    host: "{{ ansible_default_ipv4.address }}"
+    delay: 5
+    timeout: 60
+
+- name: Login to registry
+  community.general.podman_login:
+    registry: "{{ registry_config.local_registry_url }}"
+    username: "{{ auth_config.username }}"
+    password: "{{ auth_config.password }}"
+    state: "present"
+
+- name: Tag images for registry push
+  shell: |
+    podman tag "{{ item.image }}" "{{ registry_config.local_registry_url }}/{{ item.image }}"
+  loop: "{{ images_to_push }}"
+  register: tag_result
+
+- name: Push images to registry
+  shell: |
+    podman push "{{ registry_config.local_registry_url }}/{{ item.image }}"
+  loop: "{{ images_to_push }}"
+  register: push_result
+
+- name: Verify images were pushed successfully
+  shell: |
+    podman search "{{ registry_config.local_registry_url }}" --format "table {{.Name}}" | grep -E "({{ images_to_push | map(attribute='name') | join('|') }})"
+  register: verify_result
+  failed_when: verify_result.rc != 0
+
+- name: Display push results
+  debug:
+    msg: |
+      Registry push completed successfully
+      Registry: {{ registry_config.local_registry_url }}
+      Images pushed: {{ images_to_push | map(attribute='image') | join(', ') }}
+      Total images: {{ images_to_push | length }}

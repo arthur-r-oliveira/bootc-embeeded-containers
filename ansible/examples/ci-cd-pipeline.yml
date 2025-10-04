@@ -1,0 +1,98 @@
+---
+- name: CI/CD Pipeline Example
+  hosts: localhost
+  gather_facts: true
+  vars:
+    # CI/CD configuration
+    cicd_config:
+      pipeline_stage: "{{ pipeline_stage | default('build') }}"
+      build_number: "{{ build_number | default('001') }}"
+      git_commit: "{{ git_commit | default('unknown') }}"
+      
+    # Environment configuration
+    env_config:
+      environments:
+        - name: "dev"
+          registry: "dev-registry.example.com:5000"
+          image_tag: "dev-{{ cicd_config.build_number }}"
+        - name: "staging"
+          registry: "staging-registry.example.com:5000"
+          image_tag: "staging-{{ cicd_config.build_number }}"
+        - name: "production"
+          registry: "prod-registry.example.com:5000"
+          image_tag: "prod-{{ cicd_config.build_number }}"
+          
+    # Application configuration
+    app_config:
+      microshift_version: "4.19"
+      rhel_version: "9.6"
+      app_images:
+        - "docker.io/library/nginx:latest"
+        - "docker.io/library/redis:7-alpine"
+        
+  tasks:
+    - name: Build stage
+      block:
+        - name: Build base image
+          include_role:
+            name: bootc_base_image
+          vars:
+            image_tag: "{{ cicd_config.build_number }}"
+            microshift_config:
+              version: "{{ app_config.microshift_version }}"
+              rhel_version: "{{ app_config.rhel_version }}"
+              
+        - name: Build embedded image
+          include_role:
+            name: bootc_embedded_image
+          vars:
+            image_tag: "{{ cicd_config.build_number }}"
+            application_images: "{{ app_config.app_images }}"
+            
+        - name: Create ISO
+          include_role:
+            name: bootc_iso_creation
+          vars:
+            image_tag: "{{ cicd_config.build_number }}"
+            
+      when: cicd_config.pipeline_stage in ['build', 'all']
+      
+    - name: Test stage
+      block:
+        - name: Create test VM
+          include_role:
+            name: bootc_vm_testing
+          vars:
+            image_tag: "{{ cicd_config.build_number }}"
+            vm_config:
+              vm_name: "test-{{ cicd_config.build_number }}"
+              
+        - name: Run basic tests
+          include_tasks: tests/test-basic.yml
+          vars:
+            vm_name: "test-{{ cicd_config.build_number }}"
+            
+      when: cicd_config.pipeline_stage in ['test', 'all']
+      
+    - name: Deploy stage
+      block:
+        - name: Deploy to environments
+          include_role:
+            name: bootc_delta_deployment
+          vars:
+            base_image_tag: "{{ item.previous_tag | default('latest') }}"
+            updated_image_tag: "{{ item.image_tag }}"
+            registry_url: "{{ item.registry }}"
+          loop: "{{ env_config.environments }}"
+          
+      when: cicd_config.pipeline_stage in ['deploy', 'all']
+      
+    - name: Display CI/CD pipeline summary
+      debug:
+        msg: |
+          CI/CD Pipeline Summary:
+          - Stage: {{ cicd_config.pipeline_stage }}
+          - Build number: {{ cicd_config.build_number }}
+          - Git commit: {{ cicd_config.git_commit }}
+          - Environments: {{ env_config.environments | map(attribute='name') | list }}
+          - Application images: {{ app_config.app_images | join(', ') }}

@@ -1,0 +1,41 @@
+---
+- name: Create build directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ bootc_config.build_dir }}"
+    - "{{ bootc_config.output_dir }}"
+
+- name: Verify pull secret file exists
+  stat:
+    path: "{{ bootc_config.pull_secret_file }}"
+  register: pull_secret_stat
+  failed_when: not pull_secret_stat.stat.exists
+
+- name: Create Containerfile.base
+  template:
+    src: Containerfile.base.j2
+    dest: "{{ bootc_config.build_dir }}/Containerfile.base"
+    mode: '0644'
+
+- name: Build base MicroShift bootc image
+  community.general.podman_image:
+    name: "{{ bootc_config.base_image_name }}:{{ image_tag }}"
+    build:
+      path: "{{ bootc_config.build_dir }}"
+      file: "Containerfile.base"
+      args:
+        USHIFT_VER: "{{ microshift_config.version }}"
+        USER_PASSWD: "{{ microshift_config.user_password }}"
+    auth_file: "{{ bootc_config.pull_secret_file }}"
+    state: present
+  register: base_image_build
+
+- name: Display base image build result
+  debug:
+    msg: |
+      Base image built successfully
+      Image: {{ bootc_config.base_image_name }}:{{ image_tag }}
+      Image ID: {{ base_image_build.image_id }}

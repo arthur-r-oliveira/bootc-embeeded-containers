@@ -1,0 +1,26 @@
+---
+galaxy_info:
+  author: "Red Hat Support Team"
+  description: "Create delta updates for bootc images using tar-diff"
+  company: "Red Hat"
+  license: "GPL-3.0"
+  min_ansible_version: "2.15"
+  platforms:
+    - name: "EL"
+      versions:
+        - "9"
+    - name: "Fedora"
+      versions:
+        - "38"
+        - "39"
+        - "40"
+  galaxy_tags:
+    - "bootc"
+    - "delta"
+    - "updates"
+    - "tar-diff"
+    - "disconnected"
+
+dependencies:
+  - role: bootc_embedded_image
+    when: build_images | default(true)

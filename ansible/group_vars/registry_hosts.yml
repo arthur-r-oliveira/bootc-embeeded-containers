@@ -1,0 +1,34 @@
+---
+# Variables specific to registry hosts
+
+# Registry host configuration
+registry_host_config:
+  max_connections: 100
+  request_timeout: 300
+  storage_quota: "100GB"
+  enable_compression: true
+  compression_level: 6
+  
+# Registry security configuration
+registry_security_config:
+  enable_tls: false  # Set to true for production
+  tls_cert_file: "/etc/ssl/certs/registry.crt"
+  tls_key_file: "/etc/ssl/private/registry.key"
+  enable_auth: true
+  auth_backend: "htpasswd"
+  htpasswd_file: "/etc/containers/htpasswd"
+  
+# Registry storage configuration
+registry_storage_config:
+  storage_driver: "filesystem"
+  storage_root: "{{ registry_config.data_dir }}"
+  enable_deletion: true
+  enable_manifest_cache: true
+  manifest_cache_ttl: "24h"
+  
+# Registry monitoring
+registry_monitoring_config:
+  enable_metrics: true
+  metrics_port: 9090
+  log_level: "info"
+  log_format: "json"

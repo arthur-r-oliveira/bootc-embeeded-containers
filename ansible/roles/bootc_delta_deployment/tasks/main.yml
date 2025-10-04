@@ -1,0 +1,116 @@
+---
+- name: Install tar-patch on target system
+  block:
+    - name: Download Go 1.22.12
+      get_url:
+        url: "https://go.dev/dl/go1.22.12.linux-amd64.tar.gz"
+        dest: "/tmp/go1.22.12.linux-amd64.tar.gz"
+        mode: '0644'
+
+    - name: Extract Go to /usr/local
+      unarchive:
+        src: "/tmp/go1.22.12.linux-amd64.tar.gz"
+        dest: "/usr/local"
+        remote_src: true
+
+    - name: Set Go environment variables
+      lineinfile:
+        path: "/etc/environment"
+        line: "PATH=$PATH:/usr/local/go/bin"
+        create: true
+
+    - name: Update PATH for current session
+      set_fact:
+        ansible_env:
+          PATH: "{{ ansible_env.PATH }}:/usr/local/go/bin"
+
+- name: Install build dependencies
+  package:
+    name:
+      - git
+      - make
+      - gcc
+      - glibc-devel
+    state: present
+
+- name: Clone tar-diff repository
+  git:
+    repo: "https://github.com/containers/tar-diff.git"
+    dest: "/tmp/tar-diff"
+    version: "master"
+
+- name: Build tar-patch
+  shell: |
+    cd /tmp/tar-diff
+    export PATH=$PATH:/usr/local/go/bin
+    make tar-patch
+    make install
+  args:
+    creates: "/usr/local/bin/tar-patch"
+
+- name: Create delta deployment directory
+  file:
+    path: "/var/ostree/updates"
+    state: directory
+    mode: '0755'
+
+- name: Copy delta file to target system
+  copy:
+    src: "{{ delta_deploy_config.delta_file_path }}"
+    dest: "/var/ostree/updates/delta-update.tar"
+    mode: '0644'
+
+- name: Copy base image to target system
+  copy:
+    src: "{{ delta_deploy_config.base_image_tar }}"
+    dest: "/var/ostree/updates/base-image.tar"
+    mode: '0644'
+
+- name: Reconstruct updated image using tar-patch
+  shell: |
+    /usr/local/bin/tar-patch /var/ostree/updates/base-image.tar /var/ostree/updates/delta-update.tar /var/ostree/updates/reconstructed-image.tar
+  args:
+    creates: "/var/ostree/updates/reconstructed-image.tar"
+
+- name: Load reconstructed image to local registry
+  shell: |
+    podman load -i /var/ostree/updates/reconstructed-image.tar
+  register: load_result
+
+- name: Tag reconstructed image for local registry
+  shell: |
+    podman tag "{{ bootc_config.embedded_image_name }}:{{ updated_image_tag }}" "{{ registry_url }}/{{ bootc_config.embedded_image_name }}:{{ updated_image_tag }}"
+  when: load_result.rc == 0
+
+- name: Configure registry authentication
+  lineinfile:
+    path: "/etc/containers/registries.conf"
+    line: "[[registry]]\nprefix = \"{{ registry_url }}\"\nlocation = \"{{ registry_url }}\"\ninsecure = true"
+    insertafter: "\[registries\.insecure\]"
+    create: true
+
+- name: Push image to local registry
+  shell: |
+    podman push "{{ registry_url }}/{{ bootc_config.embedded_image_name }}:{{ updated_image_tag }}"
+  when: load_result.rc == 0
+
+- name: Switch to updated image using bootc
+  shell: |
+    bootc switch "{{ registry_url }}/{{ bootc_config.embedded_image_name }}:{{ updated_image_tag }}"
+  register: bootc_switch_result
+  when: load_result.rc == 0
+
+- name: Apply bootc upgrade
+  shell: |
+    bootc upgrade --apply
+  when: 
+    - load_result.rc == 0
+    - bootc_switch_result.rc == 0
+
+- name: Display deployment summary
+  debug:
+    msg: |
+      Delta update deployed successfully
+      Target system updated to: {{ updated_image_tag }}
+      Registry: {{ registry_url }}
+      Bootc switch result: {{ bootc_switch_result.stdout if bootc_switch_result is defined else 'N/A' }}

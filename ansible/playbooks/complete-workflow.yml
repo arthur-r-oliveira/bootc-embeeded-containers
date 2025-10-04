@@ -1,0 +1,96 @@
+---
+- name: Complete Bootc Embedded Containers Workflow
+  hosts: localhost
+  gather_facts: true
+  vars:
+    # Workflow configuration
+    workflow_config:
+      build_all_versions: true
+      create_delta_updates: true
+      setup_registry: true
+      create_test_vm: true
+      deploy_delta_updates: false  # Set to true for production deployment
+      
+    # Image versions to build
+    image_versions:
+      - "v1"
+      - "v2"
+      - "v3"
+      
+    # Delta update pairs
+    delta_pairs:
+      - { from: "v1", to: "v2" }
+      - { from: "v2", to: "v3" }
+
+  tasks:
+    - name: Display workflow configuration
+      debug:
+        msg: |
+          Complete Bootc Workflow Configuration:
+          - Build all versions: {{ workflow_config.build_all_versions }}
+          - Create delta updates: {{ workflow_config.create_delta_updates }}
+          - Setup registry: {{ workflow_config.setup_registry }}
+          - Create test VM: {{ workflow_config.create_test_vm }}
+          - Deploy delta updates: {{ workflow_config.deploy_delta_updates }}
+          - Image versions: {{ image_versions | join(', ') }}
+
+    - name: Include build playbook
+      include: build-bootc-images.yml
+      when: workflow_config.build_all_versions
+
+    - name: Include registry setup playbook
+      include: setup-registry.yml
+      when: workflow_config.setup_registry
+
+    - name: Create delta updates for each pair
+      include: delta-updates.yml
+      vars:
+        base_image_tag: "{{ item.from }}"
+        updated_image_tag: "{{ item.to }}"
+      loop: "{{ delta_pairs }}"
+      when: workflow_config.create_delta_updates
+
+    - name: Create test VM
+      include_role:
+        name: bootc_vm_testing
+      vars:
+        image_tag: "{{ image_versions[0] }}"
+      when: workflow_config.create_test_vm
+
+    - name: Deploy delta updates to target systems
+      include: deploy-delta-update.yml
+      vars:
+        base_image_tag: "{{ item.from }}"
+        updated_image_tag: "{{ item.to }}"
+      loop: "{{ delta_pairs }}"
+      when: workflow_config.deploy_delta_updates
+
+    - name: Display workflow completion summary
+      debug:
+        msg: |
+          Workflow completed successfully!
+          
+          Built Images:
+          {% for version in image_versions %}
+          - {{ bootc_config.embedded_image_name }}:{{ version }}
+          {% endfor %}
+          
+          {% if workflow_config.create_delta_updates %}
+          Delta Updates Created:
+          {% for pair in delta_pairs %}
+          - {{ pair.from }} → {{ pair.to }}
+          {% endfor %}
+          {% endif %}
+          
+          {% if workflow_config.setup_registry %}
+          Registry: {{ registry_config.local_registry_url }}
+          {% endif %}
+          
+          {% if workflow_config.create_test_vm %}
+          Test VM: {{ vm_config.vm_name }}
+          {% endif %}
+          
+          Next Steps:
+          1. Test the VM: virsh console {{ vm_config.vm_name }}
+          2. Access MicroShift: oc get nodes
+          3. Deploy applications: oc apply -k wordpress/

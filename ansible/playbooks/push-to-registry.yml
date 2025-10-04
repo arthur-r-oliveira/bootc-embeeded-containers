@@ -1,0 +1,33 @@
+---
+- name: Push Bootc Images to Registry
+  hosts: build_hosts
+  gather_facts: true
+  vars:
+    # Images to push configuration
+    images_to_push:
+      - image: "{{ bootc_config.base_image_name }}:latest"
+        name: "{{ bootc_config.base_image_name }}"
+        tag: "latest"
+      - image: "{{ bootc_config.embedded_image_name }}:v1"
+        name: "{{ bootc_config.embedded_image_name }}"
+        tag: "v1"
+      - image: "{{ bootc_config.embedded_image_name }}:v2"
+        name: "{{ bootc_config.embedded_image_name }}"
+        tag: "v2"
+      - image: "{{ bootc_config.embedded_image_name }}:v3"
+        name: "{{ bootc_config.embedded_image_name }}"
+        tag: "v3"
+
+  tasks:
+    - name: Include registry push role
+      include_role:
+        name: registry_push
+      vars:
+        images_to_push: "{{ images_to_push }}"
+
+    - name: Display push summary
+      debug:
+        msg: |
+          Images pushed to registry successfully
+          Registry: {{ registry_config.local_registry_url }}
+          Images: {{ images_to_push | map(attribute='image') | join(', ') }}

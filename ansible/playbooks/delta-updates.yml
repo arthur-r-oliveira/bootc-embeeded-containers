@@ -1,0 +1,30 @@
+---
+- name: Create Delta Updates for Bootc Images
+  hosts: build_hosts
+  gather_facts: true
+  vars:
+    # Delta update configuration
+    delta_config:
+      base_image_tag: "v1"
+      updated_image_tag: "v2"
+      base_image_tar: "{{ bootc_config.build_dir }}/base-image-{{ delta_config.base_image_tag }}.tar"
+      updated_image_tar: "{{ bootc_config.build_dir }}/updated-image-{{ delta_config.updated_image_tag }}.tar"
+      delta_file: "{{ bootc_config.build_dir }}/delta-{{ delta_config.base_image_tag }}-{{ delta_config.updated_image_tag }}.tar"
+      tar_diff_binary: "/usr/local/bin/tar-diff"
+      tar_patch_binary: "/usr/local/bin/tar-patch"
+
+  tasks:
+    - name: Include delta updates role
+      include_role:
+        name: bootc_delta_updates
+      vars:
+        base_image_tag: "{{ delta_config.base_image_tag }}"
+        updated_image_tag: "{{ delta_config.updated_image_tag }}"
+
+    - name: Display delta update summary
+      debug:
+        msg: |
+          Delta update created: {{ delta_config.delta_file }}
+          Base image: {{ delta_config.base_image_tag }}
+          Updated image: {{ delta_config.updated_image_tag }}
+          Delta size: {{ ansible_facts.stat[delta_config.delta_file].size | filesizeformat if ansible_facts.stat[delta_config.delta_file] is defined else 'N/A' }}

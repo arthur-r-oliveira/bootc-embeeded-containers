@@ -1,0 +1,108 @@
+---
+- name: Install Go 1.22+ for tar-diff compilation
+  block:
+    - name: Download Go 1.22.12
+      get_url:
+        url: "https://go.dev/dl/go1.22.12.linux-amd64.tar.gz"
+        dest: "/tmp/go1.22.12.linux-amd64.tar.gz"
+        mode: '0644'
+
+    - name: Extract Go to /usr/local
+      unarchive:
+        src: "/tmp/go1.22.12.linux-amd64.tar.gz"
+        dest: "/usr/local"
+        remote_src: true
+
+    - name: Set Go environment variables
+      lineinfile:
+        path: "/etc/environment"
+        line: "PATH=$PATH:/usr/local/go/bin"
+        create: true
+
+    - name: Update PATH for current session
+      set_fact:
+        ansible_env:
+          PATH: "{{ ansible_env.PATH }}:/usr/local/go/bin"
+
+- name: Install build dependencies
+  package:
+    name:
+      - git
+      - make
+      - gcc
+      - glibc-devel
+    state: present
+
+- name: Clone tar-diff repository
+  git:
+    repo: "https://github.com/containers/tar-diff.git"
+    dest: "/tmp/tar-diff"
+    version: "master"
+
+- name: Build tar-diff and tar-patch
+  shell: |
+    cd /tmp/tar-diff
+    export PATH=$PATH:/usr/local/go/bin
+    make tar-diff
+    make build
+    make install
+  args:
+    creates: "/usr/local/bin/tar-diff"
+
+- name: Verify tar-diff installation
+  stat:
+    path: "/usr/local/bin/tar-diff"
+  register: tar_diff_stat
+
+- name: Verify tar-patch installation
+  stat:
+    path: "/usr/local/bin/tar-patch"
+  register: tar_patch_stat
+
+- name: Export base image to tar
+  community.general.podman_image:
+    name: "{{ bootc_config.embedded_image_name }}:{{ base_image_tag }}"
+    state: present
+  register: base_image_info
+
+- name: Save base image to tar file
+  shell: |
+    podman save -o "{{ delta_config.base_image_tar }}" "{{ bootc_config.embedded_image_name }}:{{ base_image_tag }}"
+  args:
+    creates: "{{ delta_config.base_image_tar }}"
+
+- name: Save updated image to tar file
+  shell: |
+    podman save -o "{{ delta_config.updated_image_tar }}" "{{ bootc_config.embedded_image_name }}:{{ updated_image_tag }}"
+  args:
+    creates: "{{ delta_config.updated_image_tar }}"
+
+- name: Generate delta using tar-diff
+  shell: |
+    /usr/local/bin/tar-diff "{{ delta_config.base_image_tar }}" "{{ delta_config.updated_image_tar }}" "{{ delta_config.delta_file }}"
+  args:
+    creates: "{{ delta_config.delta_file }}"
+
+- name: Get delta file size
+  stat:
+    path: "{{ delta_config.delta_file }}"
+  register: delta_file_stat
+
+- name: Get base image size
+  stat:
+    path: "{{ delta_config.base_image_tar }}"
+  register: base_image_tar_stat
+
+- name: Get updated image size
+  stat:
+    path: "{{ delta_config.updated_image_tar }}"
+  register: updated_image_tar_stat
+
+- name: Display delta creation summary
+  debug:
+    msg: |
+      Delta update created successfully
+      Base image: {{ delta_config.base_image_tar }} ({{ base_image_tar_stat.stat.size | filesizeformat }})
+      Updated image: {{ delta_config.updated_image_tar }} ({{ updated_image_tar_stat.stat.size | filesizeformat }})
+      Delta file: {{ delta_config.delta_file }} ({{ delta_file_stat.stat.size | filesizeformat }})
+      Compression ratio: {{ ((delta_file_stat.stat.size / updated_image_tar_stat.stat.size) * 100) | round(2) }}%

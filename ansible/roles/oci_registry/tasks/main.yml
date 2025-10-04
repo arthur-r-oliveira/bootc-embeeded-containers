@@ -1,0 +1,73 @@
+---
+- name: Install required packages
+  package:
+    name:
+      - podman
+      - podman-docker
+      - skopeo
+      - buildah
+    state: present
+
+- name: Create registry data directory
+  file:
+    path: "{{ registry_config.data_dir }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Create registry configuration directory
+  file:
+    path: "/etc/containers"
+    state: directory
+    mode: '0755'
+
+- name: Configure registries.conf for insecure registries
+  template:
+    src: registries.conf.j2
+    dest: "{{ registry_config.config_file }}"
+    mode: '0644'
+  notify: restart podman
+
+- name: Create auth.json for registry authentication
+  template:
+    src: auth.json.j2
+    dest: "{{ registry_config.auth_file }}"
+    mode: '0600'
+    owner: root
+    group: root
+
+- name: Start registry container
+  community.general.podman_container:
+    name: "local-registry"
+    image: "registry:2"
+    ports:
+      - "{{ registry_config.port }}:5000"
+    volumes:
+      - "{{ registry_config.data_dir }}:/var/lib/registry"
+    state: started
+    restart_policy: "unless-stopped"
+  register: registry_container
+
+- name: Wait for registry to be ready
+  wait_for:
+    port: "{{ registry_config.port }}"
+    host: "{{ ansible_default_ipv4.address }}"
+    delay: 5
+    timeout: 60
+
+- name: Test registry connectivity
+  community.general.podman_login:
+    registry: "{{ registry_config.local_registry_url }}"
+    username: "test"
+    password: "test"
+    state: "present"
+  ignore_errors: true
+
+- name: Display registry information
+  debug:
+    msg: |
+      OCI Registry setup completed
+      Registry URL: {{ registry_config.local_registry_url }}
+      Data directory: {{ registry_config.data_dir }}
+      Status: {{ 'Running' if registry_container.container.state == 'running' else 'Failed' }}

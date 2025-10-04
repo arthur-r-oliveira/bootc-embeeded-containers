@@ -1,0 +1,28 @@
+---
+# Default variables for registry_push role
+
+# Images to push configuration
+images_to_push:
+  - image: "microshift-4.19-bootc:latest"
+    name: "microshift-4.19-bootc"
+    tag: "latest"
+  - image: "microshift-4.19-bootc-embedded:v1"
+    name: "microshift-4.19-bootc-embedded"
+    tag: "v1"
+  - image: "microshift-4.19-bootc-embedded:v2"
+    name: "microshift-4.19-bootc-embedded"
+    tag: "v2"
+  - image: "microshift-4.19-bootc-embedded:v3"
+    name: "microshift-4.19-bootc-embedded"
+    tag: "v3"
+
+# Registry configuration
+registry_config:
+  container_name: "local-registry"
+  local_registry_url: "localhost:5000"
+  port: 5000
+
+# Authentication configuration
+auth_config:
+  username: "test"
+  password: "test"

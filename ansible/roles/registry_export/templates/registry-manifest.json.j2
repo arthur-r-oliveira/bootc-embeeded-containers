@@ -1,0 +1,29 @@
+{
+  "registry_export": {
+    "version": "1.0",
+    "created_at": "{{ ansible_date_time.iso8601 }}",
+    "source_host": "{{ ansible_hostname }}",
+    "registry_url": "{{ registry_config.local_registry_url }}",
+    "images": [
+      {% for image in images_in_registry %}
+      {
+        "name": "{{ image.name }}",
+        "tag": "{{ image.tag }}",
+        "full_name": "{{ image.full_name }}",
+        "size": "{{ image.size | default('unknown') }}",
+        "digest": "{{ image.digest | default('unknown') }}"
+      }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ],
+    "registry_config": {
+      "data_dir": "{{ registry_config.data_dir }}",
+      "port": {{ registry_config.port }},
+      "container_name": "{{ registry_config.container_name }}"
+    },
+    "export_info": {
+      "export_dir": "{{ registry_export_config.export_dir }}",
+      "compression_level": {{ registry_export_config.compression_level }},
+      "total_images": {{ images_in_registry | length }}
+    }
+  }
+}

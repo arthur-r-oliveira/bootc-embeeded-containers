@@ -1,0 +1,26 @@
+---
+galaxy_info:
+  author: "Red Hat Support Team"
+  description: "Build embedded bootc images with application containers"
+  company: "Red Hat"
+  license: "GPL-3.0"
+  min_ansible_version: "2.15"
+  platforms:
+    - name: "EL"
+      versions:
+        - "9"
+    - name: "Fedora"
+      versions:
+        - "38"
+        - "39"
+        - "40"
+  galaxy_tags:
+    - "bootc"
+    - "microshift"
+    - "containers"
+    - "embedded"
+    - "kubernetes"
+
+dependencies:
+  - role: bootc_base_image
+    when: build_base_image | default(true)

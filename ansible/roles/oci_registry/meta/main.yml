@@ -1,0 +1,29 @@
+---
+galaxy_info:
+  author: "Red Hat Support Team"
+  description: "Setup OCI registry for disconnected deployments"
+  company: "Red Hat"
+  license: "GPL-3.0"
+  min_ansible_version: "2.15"
+  platforms:
+    - name: "EL"
+      versions:
+        - "9"
+    - name: "Fedora"
+      versions:
+        - "38"
+        - "39"
+        - "40"
+    - name: "Ubuntu"
+      versions:
+        - "20.04"
+        - "22.04"
+        - "24.04"
+  galaxy_tags:
+    - "registry"
+    - "oci"
+    - "containers"
+    - "disconnected"
+    - "podman"
+
+dependencies: []

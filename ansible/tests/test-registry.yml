@@ -1,0 +1,51 @@
+---
+- name: Test OCI Registry Setup
+  hosts: localhost
+  gather_facts: true
+  
+  tasks:
+    - name: Test registry setup
+      include_role:
+        name: oci_registry
+        
+    - name: Wait for registry to be ready
+      wait_for:
+        port: "{{ registry_config.port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 5
+        timeout: 60
+        
+    - name: Test registry connectivity
+      community.general.podman_login:
+        registry: "{{ registry_config.local_registry_url }}"
+        username: "{{ auth_config.username }}"
+        password: "{{ auth_config.password }}"
+        state: "present"
+      register: login_result
+      
+    - name: Test image push to registry
+      community.general.podman_image:
+        name: "{{ registry_config.local_registry_url }}/test-image:latest"
+        source: "docker://alpine:latest"
+        state: present
+      register: push_result
+      
+    - name: Test image pull from registry
+      community.general.podman_image:
+        name: "{{ registry_config.local_registry_url }}/test-image:latest"
+        state: present
+      register: pull_result
+      
+    - name: Display test results
+      debug:
+        msg: |
+          Registry Test Results:
+          - Registry setup: {{ 'PASS' if not login_result.failed else 'FAIL' }}
+          - Image push: {{ 'PASS' if not push_result.failed else 'FAIL' }}
+          - Image pull: {{ 'PASS' if not pull_result.failed else 'FAIL' }}
+          
+    - name: Cleanup test images
+      community.general.podman_image:
+        name: "{{ registry_config.local_registry_url }}/test-image:latest"
+        state: absent
+      when: cleanup_test_images | default(true)

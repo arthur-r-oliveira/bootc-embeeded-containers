@@ -1,0 +1,8 @@
+FROM localhost/{{ bootc_config.embedded_image_name }}:{{ base_image_tag }}
+ARG USHIFT_VER={{ microshift_config.version }}
+
+RUN dnf config-manager \
+        --set-enabled rhocp-${USHIFT_VER}-for-rhel-9-$(uname -m)-rpms \
+        --set-enabled fast-datapath-for-rhel-9-$(uname -m)-rpms 
+RUN dnf update --enablerepo=rhel-9-for-$(uname -m)-baseos-eus-rpms --enablerepo=rhel-9-for-x86_64-appstream-eus-rpms -y --releasever={{ microshift_config.rhel_version }} && \
+    dnf clean all
