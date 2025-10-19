@@ -33,8 +33,8 @@ PULL
 
 # 
 
-#RUN mkdir -p /etc/systemd/system/microshift.service.d
-#RUN cat > /etc/systemd/system/microshift.service.d/microshift-copy-images.conf <<EOF
-#[Service]
-#ExecStartPre=/bin/bash /usr/bin/copy_embedded_images.sh
-#EOF
+RUN mkdir -p /etc/systemd/system/microshift.service.d
+RUN cat > /etc/systemd/system/microshift.service.d/microshift-copy-images.conf <<EOF
+[Service]
+ExecStartPre=/bin/bash /usr/bin/copy_embedded_images.sh
+EOF

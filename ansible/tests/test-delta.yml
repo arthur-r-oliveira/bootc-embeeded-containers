@@ -9,13 +9,13 @@
       
   tasks:
     - name: Create test base image
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ bootc_config.embedded_image_name }}:{{ test_config.base_tag }}"
         source: "docker://alpine:latest"
         state: present
         
     - name: Create test updated image
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ bootc_config.embedded_image_name }}:{{ test_config.updated_tag }}"
         source: "docker://alpine:3.18"
         state: present
@@ -41,7 +41,7 @@
         registry_url: "localhost:5000"
         
     - name: Verify reconstructed image
-      community.general.podman_image:
+      containers.podman.podman_image:
         name: "{{ bootc_config.embedded_image_name }}:{{ test_config.updated_tag }}"
         state: present
       register: reconstructed_image_check
@@ -57,7 +57,7 @@
     - name: Cleanup test artifacts
       block:
         - name: Remove test images
-          community.general.podman_image:
+          containers.podman.podman_image:
             name: "{{ item }}"
             state: absent
           loop:

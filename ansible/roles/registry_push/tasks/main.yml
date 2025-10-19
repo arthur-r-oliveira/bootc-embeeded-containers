@@ -1,6 +1,6 @@
 ---
 - name: Verify registry is running
-  community.general.podman_container:
+  containers.podman.podman_container:
     name: "{{ registry_config.container_name }}"
     state: started
   register: registry_status
@@ -13,7 +13,7 @@
     timeout: 60
 
 - name: Login to registry
-  community.general.podman_login:
+  containers.podman.podman_login:
     registry: "{{ registry_config.local_registry_url }}"
     username: "{{ auth_config.username }}"
     password: "{{ auth_config.password }}"

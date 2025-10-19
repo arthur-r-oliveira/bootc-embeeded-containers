@@ -11,7 +11,7 @@
       registry_url: "quay.io"
       registry_namespace: "rhn_support_arolivei"
       build_dir: "{{ ansible_user_dir }}/bootc-builds"
-      output_dir: "{{ build_dir }}/output"
+      output_dir: "{{ ansible_user_dir }}/bootc-builds/output"
       
     # MicroShift configuration
     microshift_config:

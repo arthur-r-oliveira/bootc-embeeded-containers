@@ -6,7 +6,7 @@
     mode: '0755'
 
 - name: Create ISO from bootc image
-  community.general.podman_container:
+  containers.podman.podman_container:
     name: "bootc-iso-builder-{{ image_tag }}"
     image: "registry.redhat.io/rhel9/bootc-image-builder:latest"
     command: |
@@ -19,7 +19,7 @@
     privileged: true
     security_opt:
       - "label=type:unconfined_t"
-    auth_file: "{{ bootc_config.pull_secret_file }}"
+    authfile: "{{ bootc_config.pull_secret_file }}"
     state: started
     detach: false
   register: iso_creation_result
