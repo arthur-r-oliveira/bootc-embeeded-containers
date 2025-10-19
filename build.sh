@@ -13,7 +13,7 @@ if [ -z "$TAG" ]; then
 fi
 
 REGISTRY_IMG="rhn_support_arolivei/${IMAGE_NAME}"
-BASE_IMAGE_NAME=microshift-4.19-bootc:v2
+BASE_IMAGE_NAME=microshift-4.19-bootc:${TAG}
 
 echo "#### Building a new bootc image with MicroShift and application Container images embeeded to it"
 podman build --authfile "${PULL_SECRET}" -t "${IMAGE_NAME}:${TAG}" \
