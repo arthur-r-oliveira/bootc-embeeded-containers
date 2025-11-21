@@ -11,8 +11,6 @@ ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
 COPY ./embed_image.sh /usr/bin/
 COPY ./copy_embedded_images.sh /usr/bin/
 
-ENV IMAGE_STORAGE_DIR=/usr/lib/containers/storage
-ENV IMAGE_LIST_FILE=${IMAGE_STORAGE_DIR}/image-list.txt
 
 # Pull the container images into /usr/lib/containers/storage:
 # - Each image goes into a separate sub-directory
