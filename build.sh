@@ -45,7 +45,7 @@ echo "#### Building a new bootc image with MicroShift and application Container 
 sudo podman build -t "${IMAGE_NAME}:${TAG}" \
     --volume /etc/rhsm:/etc/rhsm:ro,z \
     --volume /etc/pki/entitlement:/etc/pki/entitlement:ro,z \
-    --volume /etc/containers/registries.d/registry-5000.yaml:/etc/containers/registries.d/registry-5000.yaml:ro,z \    
+    --volume /etc/containers/registries.d/registry-5000.yaml:/etc/containers/registries.d/registry-5000.yaml:ro,z \
     --volume /etc/yum.repos.d:/etc/yum.repos.d:ro,z \
     --volume /etc/containers/registries.conf.d/99-mirrors.conf:/etc/containers/registries.conf.d/99-mirrors.conf:ro,z \
     --volume /etc/containers/policy.json:/etc/containers/policy.json:ro,z \
