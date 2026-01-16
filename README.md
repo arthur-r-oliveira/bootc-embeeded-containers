@@ -209,7 +209,7 @@ This is the essential utility used by the build system to compare the base-image
 
 **Requirements on Target System**
 
-- Access to a OCI Registry within the same Isolated LAN, although could also be embeeded to the running edge system.
+- Access to a OCI Registry within the same Isolated LAN, although could also be embedded to the running edge system.
 
 - `base-image.tar` or an equivalent OCI-formatted image
  The base image must be available on-site, but it does not need to reside directly on the edge system. It can be stored on an on-site bastion host, local repository, or any system within the same network. This image will serve as the foundation for applying the delta.
@@ -226,7 +226,7 @@ This is the essential utility used by the build system to compare the base-image
 Containerfile for updated OCI:
 ```
 #FROM registry.redhat.io/rhel9/rhel-bootc:9.4 ## V1 is RHEL 9.4, EUS based. But with the release of RHEL 9.6 EUS, this UBI is not being updated anymore.
-FROM localhost/microshift-4.18-bootc-embeeded:v1 ## our base image does already have the everything included (baseOS, configs, app images)
+FROM localhost/microshift-4.18-bootc-embedded:v1 ## our base image does already have the everything included (baseOS, configs, app images)
 ENV USHIFT_VER=4.18
 
 # we are just updating the baseOS and eventually MicroShift with latest updates.
@@ -248,7 +248,7 @@ podman save -o base-image.tar localhost/delta-oci-image:v1
 podman save -o updated-image.tar localhost/delta-oci-image:v2
 ```
 
-In our sample here, our updated OCI `microshift-4.18-bootc-embeeded:v2` is built from `microshift-4.18-bootc-embeeded:v1` and it does include only baseOS updates with ~390Mbytes of size.
+In our sample here, our updated OCI `microshift-4.18-bootc-embedded:v2` is built from `microshift-4.18-bootc-embedded:v1` and it does include only baseOS updates with ~390Mbytes of size.
 
 *(Full command outputs are omitted for brevity. Refer to a dedicated lab guide for complete logs.)*
 
@@ -315,9 +315,9 @@ This server acts as the central hub for updates. It will receive the delta, reco
    *(Full command outputs are omitted for brevity. Refer to a dedicated lab guide for complete logs.)*
 4. Load the generated image to a local OCI registry:
    ```bash
-   podman load -i reconstructed_microshift-4.18-bootc-embeeded-v2.tar
-   podman tag microshift-4.18-bootc-embeeded:v2 localhost:5000/microshift-4.18-bootc-embeeded:v2
-   podman push localhost:5000/microshift-4.18-bootc-embeeded:v2
+   podman load -i reconstructed_microshift-4.18-bootc-embedded-v2.tar
+   podman tag microshift-4.18-bootc-embedded:v2 localhost:5000/microshift-4.18-bootc-embedded:v2
+   podman push localhost:5000/microshift-4.18-bootc-embedded:v2
    ```
 
 ##### Patching Host
@@ -340,7 +340,7 @@ insecure = true
 
 Then, Upgrade with `bootc switch`:
 ```bash
-sudo bootc switch 192.168.111.152:5000/microshift-4.18-bootc-embeeded:v2
+sudo bootc switch 192.168.111.152:5000/microshift-4.18-bootc-embedded:v2
 ```
 *(Full command outputs are omitted for brevity. Refer to a dedicated lab guide for complete logs.)*
 
@@ -362,7 +362,7 @@ Create a new Containerfile, or a version of it, within RHEL 9.6 and MicroShift 4
 
 Containerfile.v3:
 ```
-FROM localhost/microshift-4.18-bootc-embeeded:v2
+FROM localhost/microshift-4.18-bootc-embedded:v2
 ARG USHIFT_VER=4.19
 ARG RHEL_VER=9.6
 
@@ -385,7 +385,7 @@ Reconstruct v3 from the delta On the Local Registry
 
 Apply to the target system. This is a bit bigger payload, as we upgrade from 9.4 to 9.6:
 ```bash
-sudo bootc switch 192.168.111.152:5000/microshift-4.19-bootc-embeeded:v3
+sudo bootc switch 192.168.111.152:5000/microshift-4.19-bootc-embedded:v3
 ```
 *(Full command outputs are omitted for brevity. Refer to a dedicated lab guide for complete logs.)*
 

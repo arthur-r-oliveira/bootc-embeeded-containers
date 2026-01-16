@@ -10,9 +10,9 @@ About OSTree delta updates, see references at:
 Let's assume that you have two bootc (OCI) images, a v1 with the initial state of your system and a v2 with the OS updated and additional container images embeeed to it: 
 
 ~~~
-[root@rhel94-local ~]# podman images|grep microshift-4.18-bootc-embeeded
-localhost/microshift-4.18-bootc-embeeded       v2              797afe15262d  5 days ago     10.7 GB
-localhost/microshift-4.18-bootc-embeeded       v1              894052d64cc8  5 days ago     5.76 GB
+[root@rhel94-local ~]# podman images|grep microshift-4.18-bootc-embedded
+localhost/microshift-4.18-bootc-embedded       v2              797afe15262d  5 days ago     10.7 GB
+localhost/microshift-4.18-bootc-embedded       v1              894052d64cc8  5 days ago     5.76 GB
 [root@rhel94-local ~]# 
 ~~~
 
@@ -32,28 +32,28 @@ See more at https://github.com/coreos/rpm-ostree/blob/main/docs/container.md#url
 
 ~~~
 [root@rhel94-local ~]# podman images|grep microshift
-localhost:5000/microshift-4.18-bootc-embeeded  v2              797afe15262d  5 days ago     10.7 GB
-localhost/microshift-4.18-bootc-embeeded       v2              797afe15262d  5 days ago     10.7 GB
-localhost/microshift-4.18-bootc-embeeded       v1              894052d64cc8  5 days ago     5.76 GB
+localhost:5000/microshift-4.18-bootc-embedded  v2              797afe15262d  5 days ago     10.7 GB
+localhost/microshift-4.18-bootc-embedded       v2              797afe15262d  5 days ago     10.7 GB
+localhost/microshift-4.18-bootc-embedded       v1              894052d64cc8  5 days ago     5.76 GB
 localhost/microshift-4.18-bootc                latest          484398421db2  5 days ago     2.37 GB
 [root@rhel94-local ~]# 
 ~~~
 
 ostree-unverified-registry: 
 ~~~
-[root@rhel94-local ~]# ostree container image pull --insecure-skip-tls-verification /root/repo1 ostree-unverified-registry:localhost:5000/microshift-4.18-bootc-embeeded:v1
+[root@rhel94-local ~]# ostree container image pull --insecure-skip-tls-verification /root/repo1 ostree-unverified-registry:localhost:5000/microshift-4.18-bootc-embedded:v1
 layers already present: 0; layers needed: 90 (8.9 GB)
  274 B [████████████████████] (0s) Fetched layer sha256:b924d56fae13                                                                                                                                               Image contains non-ostree compatible file paths: tmp: 2 run: 7
-Wrote: ostree-unverified-registry:localhost:5000/microshift-4.18-bootc-embeeded:v2 => 706dabbe7a480cf6d65ed6f9829e44a1d354709ec0c5e98990b0e4d6a4664918
+Wrote: ostree-unverified-registry:localhost:5000/microshift-4.18-bootc-embedded:v2 => 706dabbe7a480cf6d65ed6f9829e44a1d354709ec0c5e98990b0e4d6a4664918
 [root@rhel94-local ~]# 
 ~~~
 
 Or you can pull from your local container storage with ostree-unverified-image:containers-storage:
 ~~~
-[root@rhel94-local ~]# ostree container image pull --insecure-skip-tls-verification /root/repo2 ostree-unverified-image:containers-storage:localhost/microshift-4.18-bootc-embeeded:v2
+[root@rhel94-local ~]# ostree container image pull --insecure-skip-tls-verification /root/repo2 ostree-unverified-image:containers-storage:localhost/microshift-4.18-bootc-embedded:v2
 layers already present: 0; layers needed: 90 (10.7 GB)
  4.00 KiB [████████████████████] (0s) Fetched layer sha256:d9721dcd6b2a                                                                                                                                            Image contains non-ostree compatible file paths: tmp: 2 run: 7
-Wrote: ostree-unverified-image:containers-storage:localhost/microshift-4.18-bootc-embeeded:v2 => fd0b22924747724043aa4817782b6c6ac3fdbbc81b9617a994304924ded7ca03
+Wrote: ostree-unverified-image:containers-storage:localhost/microshift-4.18-bootc-embedded:v2 => fd0b22924747724043aa4817782b6c6ac3fdbbc81b9617a994304924ded7ca03
 [root@rhel94-local ~]# 
 
 ~~~
@@ -129,9 +129,9 @@ Check the references on both repos and diff:
 79a89
 > ostree/container/blob/sha256_3A_f6bbf4fa7a7d4c6a633b20ee7b447ebd31d2ea005c7706ad3008a002ee44b317
 81c91
-< ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embeeded_3A_v1
+< ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embedded_3A_v1
 ---
-> ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embeeded_3A_v2
+> ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embedded_3A_v2
 ~~~
 
 ## creating the static deltas 
@@ -143,7 +143,7 @@ https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/composi
 Note: "from" first Reference and "to" the last reference in the list above: 
 
 ~~~
-[[root@rhel94-local ~]# ostree --min-fallback-size=0 --repo=repo2 static-delta generate --from=ostree/container/blob/sha256_3A_2f17387e78ec4547ac01575b54bf94bb17a08eb06e5b1c197e3461c04213ade4 --to=ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embeeded_3A_v2 --filename=delta-update-file
+[[root@rhel94-local ~]# ostree --min-fallback-size=0 --repo=repo2 static-delta generate --from=ostree/container/blob/sha256_3A_2f17387e78ec4547ac01575b54bf94bb17a08eb06e5b1c197e3461c04213ade4 --to=ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embedded_3A_v2 --filename=delta-update-file
 Generating static delta:
   From: f6042a07dea41120abeeb2b6aca534a3caf1ebbb7e7d5430aa5334838ddee7f0
   To:   946b882ce81d8a8ffcd617b0de4905dbeac13568d4514d0cf08206d6fcb1f862
@@ -163,7 +163,7 @@ bsdiff=0 objects
 [root@rhel94-local ~]#  ostree --repo=repo2 summary -u
 [root@rhel94-local ~]#  ostree --repo=repo2 summary -v|tail -10
 OT: using fuse: 0
-* ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embeeded_3A_v2
+* ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embedded_3A_v2
     Latest Commit (37.5 kB):
       946b882ce81d8a8ffcd617b0de4905dbeac13568d4514d0cf08206d6fcb1f862
     Timestamp (ostree.commit.timestamp): 2025-05-14T17:36:11+01
@@ -205,7 +205,7 @@ Create a new local repo `repo-deltas` on `archive` mode and pull the content fro
 Pull the content from repo2: 
 
 ~~~
-[root@rhel94-local ~]#  ostree --repo=repo-deltas pull-local repo2 ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embeeded_3A_v2
+[root@rhel94-local ~]#  ostree --repo=repo-deltas pull-local repo2 ostree/container/image/containers-storage_3A_localhost/microshift-4_2E_18-bootc-embedded_3A_v2
 5221 metadata, 40057 content objects imported; 5.8 GB content written                                                                                                                                              
 [root@rhel94-local ~]# 
 [root@rhel94-local ~]# du -sm repo2/ repo-deltas/

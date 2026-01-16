@@ -14,11 +14,11 @@ fi
 TAG_LOWER=$(echo "$TAG" | tr '[:upper:]' '[:lower:]')
 case "$TAG_LOWER" in
     4.19)
-        IMAGE_NAME=microshift-bootc-embeeded
+        IMAGE_NAME=microshift-bootc-embedded
         BASE_IMAGE_NAME=microshift-bootc:base
         ;;
     4.20)
-        IMAGE_NAME=microshift-bootc-embeeded
+        IMAGE_NAME=microshift-bootc-embedded
         BASE_IMAGE_NAME=microshift-bootc:4.19
         ;;
     *)
@@ -38,10 +38,10 @@ if [ "$TAG_LOWER" = "4.20" ]; then
     sudo dnf config-manager \
         --set-disabled rhocp-4.18-for-rhel-9-$(uname -m)-rpms \
         --set-disabled rhocp-4.19-for-rhel-9-$(uname -m)-rpms
-    cp /etc/yum.repos.d/redhat.repo /home/lab-user/bootc-embeeded-containers
+    cp /etc/yum.repos.d/redhat.repo /home/lab-user/bootc-embedded-containers
 fi
 
-echo "#### Building a new bootc image with MicroShift and application Container images embeeded to it"
+echo "#### Building a new bootc image with MicroShift and application Container images embedded to it"
 sudo podman build -t "${IMAGE_NAME}:${TAG}" \
     --volume /etc/rhsm:/etc/rhsm:ro,z \
     --volume /etc/pki/entitlement:/etc/pki/entitlement:ro,z \
@@ -69,5 +69,5 @@ if [ "$TAG_LOWER" = "4.19" ]; then
         registry.redhat.io/rhel9/bootc-image-builder:latest \
         --progress=verbose --local --type iso localhost/${IMAGE_NAME}:${TAG}
 
-    cp -v /var/tmp/bootc-images/bootiso/install.iso microshift-bootc-embeeded-4.19.iso
+    cp -v /var/tmp/bootc-images/bootiso/install.iso microshift-bootc-embedded-4.19.iso
 fi

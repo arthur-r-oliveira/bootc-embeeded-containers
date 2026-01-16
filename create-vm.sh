@@ -1,6 +1,6 @@
 VMNAME=microshift-4.19-bootc-vm1
 NETNAME=bootc-isolated
-ISO_FILE="microshift-bootc-embeeded-4.19.iso"
+ISO_FILE="microshift-bootc-embedded-4.19.iso"
 LIBVIRT_IMAGES_DIR="/var/lib/libvirt/images"
 KS_FILE="kickstart.ks"
 

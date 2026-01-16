@@ -1,4 +1,4 @@
-FROM localhost/microshift-bootc-embeeded:4.19
+FROM localhost/microshift-bootc-embedded:4.19
 COPY ./embed_image.sh /usr/bin/
 ## Needed as bootc-image-builder requires a repo file to be present in the base image.
 # in the build.sh with TAG=4.20, we replace the 4.19 repo with the 4.20 repo to allow upgrade MicroShift to 4.20. 

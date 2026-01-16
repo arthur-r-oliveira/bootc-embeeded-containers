@@ -47,7 +47,7 @@ Download your `.pull-secret.json` from [Red Hat Console](https://console.redhat.
 1. **Clone the repository**:
    ```bash
    git clone <repository-url>
-   cd bootc-embeeded-containers
+   cd bootc-embedded-containers
    ```
 
 2. **Install Ansible collections**:
