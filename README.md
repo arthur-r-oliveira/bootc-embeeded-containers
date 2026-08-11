@@ -1,3 +1,5 @@
+
+
 # bootc-embedded-containers
 
 This repository contains examples and procedures for embedding container images into a bootable ISO using `bootc`, focusing on self-contained and disconnected environments with RHEL Image Mode.
@@ -37,7 +39,7 @@ Follow these minimal steps to build and boot a basic `bootc` image:
     ```bash
     bash -x build.sh v1
     ```
-    This will produce an ISO in the `_build` directory.
+    This will produce an ISO in the `./output` directory.
 4.  **Create a Test VM:** Use `create-vm.sh` to set up a virtual machine for testing the ISO.
     ```bash
     bash -x create-vm.sh
